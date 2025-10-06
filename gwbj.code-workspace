@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"name": "gwbj",
+			"path": ".."
+		}
+	],
+	"settings": {
+		"java.project.sourcePaths": [
+			"src"
+		],
+		"java.project.outputPath": "bin",
+		"java.project.referencedLibraries": [
+			"lib/**/*.jar",
+		],
+		"java.compile.nullAnalysis.mode": "automatic"
+	}
+}
