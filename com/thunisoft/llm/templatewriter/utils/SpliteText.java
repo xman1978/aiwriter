@@ -35,7 +35,7 @@ public class SpliteText {
     private static final Pattern HEADING_PATTERN = Pattern.compile("^[（(]?[a-zA-Z0-9一二三四五六七八九十百千万]+[\\.)）、]?\\s*.+[^。？！；：\\.?!;:]$");
     
     private static final Pattern LINE_SEPARATOR_PATTERN = Pattern.compile("\\r?\\n");
-    private static final Pattern WHITE_SPACE_PATTERN = Pattern.compile("^[\\s\\u3000]+|[\\s\\u3000]+$");
+    private static final Pattern WHITE_SPACE_PATTERN = Pattern.compile("^[\\s\\u3000]+$");
 
     private static final Pattern PUNCTUATION_NEWLINE_PATTERN = Pattern.compile("([。！？!?])\\s*\\r?\\n");
     

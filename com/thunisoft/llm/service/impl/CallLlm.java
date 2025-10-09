@@ -98,13 +98,13 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
     private int connectTimeout;
 
 
-    // 本地测试用
+    // xman: 本地测试用
     /*
     private void initParams(){
         this.debug = false;
-        this.modeName = "qwen3-30b-a3b-instruct-2507";
+        this.modeName = "GLM-4-Flash";
         this.thinkModeName = "qwen3-30b-a3b-thinking-2507";
-        this.token = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
+        this.token = "7e19583e0c47536d3fa294ff243ceb5e.RKGLq81L2icEZHTn";
         this.thinkToken = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
         this.temperature = 0;
         this.top_k = -1;
@@ -115,7 +115,7 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.stream = true;
         this.contianThinkLable = false;
         this.forceThink = false;
-        this.url = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+        this.url = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
         this.thinkUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
         this.replaceEnable = false;
         this.thinkModelType = "common";
@@ -144,7 +144,7 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.thinkModelType = chatLlmParams.getThinkModelType();
         this.baseModelType = chatLlmParams.getBaseModelType();
     }
- 
+  
     @Autowired
     private ReplaceWordService replaceWordService;
 
@@ -182,8 +182,12 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         if(extParams.containsKey("allToThink")){
             allToThink = extParams.getBooleanValue("allToThink");
         }
+        String modelType = "";
+        if(extParams.containsKey("model_type")){
+            modelType = extParams.getString("model_type");
+        }
         // xman: 如果模型是glm-4，则设置response_format 为 json_object 才能正确的输出json格式
-        if(extParams.containsKey("response_format") && params.getString("model").toLowerCase().startsWith("glm-4")){
+        if(extParams.containsKey("response_format") && modelType.matches("^(glm4|qwen3)$")){
             String responseFormat = extParams.getString("response_format");
             if(StringUtils.isBlank(responseFormat) || ! responseFormat.equals("json_object") || ! responseFormat.equals("text")){
                 responseFormat = "text";
@@ -191,11 +195,11 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
             params.put("response_format", new JSONObject().put("type", responseFormat));
         }
         // xman: qwen3 是否开启思考模式
-        if(useThink && extParams.containsKey("enable_thinking") && params.getString("model").toLowerCase().startsWith("qwen3")) {
+        if(useThink && extParams.containsKey("enable_thinking") && modelType.matches("^qwen3$")) {
             params.put("enable_thinking", extParams.getBooleanValue("enable_thinking"));
         }
         // xman: qwen3 可以限制思考长度
-        if(useThink && extParams.containsKey("thinking_budget") && params.getString("model").toLowerCase().startsWith("qwen3")){
+        if(useThink && extParams.containsKey("thinking_budget") && modelType.matches("^qwen3$")){
             params.put("thinking_budget", extParams.getInteger("thinking_budget"));
         }
         // xman: 如果只是给内部程序使用，则只需要输出思考过程到用户界面，不输出回答到用户界面
