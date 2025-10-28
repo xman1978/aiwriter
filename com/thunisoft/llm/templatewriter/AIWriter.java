@@ -3,16 +3,15 @@ package com.thunisoft.llm.templatewriter;
 import java.io.OutputStream;
 import java.io.IOException;
 import java.lang.String;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
-import java.lang.Thread;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.nio.charset.Charset;
+import java.util.stream.Collectors;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.commons.lang3.StringUtils;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,40 +22,26 @@ import com.thunisoft.llm.service.impl.CallLlm;
 import com.thunisoft.llm.templatewriter.utils.SpliteText;
 import com.thunisoft.llm.templatewriter.utils.PromptConfig;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.Files;
-import java.nio.charset.Charset;
-import java.util.stream.Collectors;
-
 /**
  * AI写作器，用于根据范文和参考内容生成文章
  */
-public class AIWriter {
+public class AIWriter extends AIWriterBase {
     private static final Logger logger = LoggerFactory.getLogger(AIWriter.class);
-    
-    // 常量定义
-    private static final Pattern THINK_PATTERN = Pattern.compile("<think>(.*?)</think>", Pattern.DOTALL);
-    private static final Pattern GW_PATTERN = Pattern.compile("^(?:通知|报告|请示|批复|意见|决定|决议|议案|函|通告|通报|纪要|公告|公报|令)$");
 
-    // 模型参数
-    private final int MAX_REFERENCE_LENGTH;
-    private final int THINKING_BUDGET;
-    private final int DEFAULT_MAX_TOKEN;
-    private final boolean THINKING_ENABLE;
+    // private static final String GW_PATTERN = "^(通知|决定|批复|意见|公告|通报|报告|请示|批复|函|纪要|意见|议案|通告|公报|令)$";
 
-    private final String modelType;
-    private final String writerTemplatePrompt;
+    private final String articleTypePrompt;
+    private final String modifyTitlePrompt;
+    private final String chapterTemplatePrompt;
+    private final String firstFilterPrompt;
     private final String refrenceExtractPrompt;
     private final String writerPrompt;
-    private final String writerTitlePrompt;
-    private final String writerOtherPrompt;
-    private final String firstFilterPrompt;
+    private final String evaluateQualityPrompt;
+    private final String articleCategory;
+    private final String optimizeRules;
 
-    private final boolean useThink;
-    private final int maxToken;
-    private final boolean isExchange;
-    private final ICallLlm callLlm;
+    private JSONObject exemplaryArticleTypeJson;
+    private JSONObject writingArticleTypeJson;
     
     /**
      * 构造函数
@@ -67,246 +52,144 @@ public class AIWriter {
      * @throws IllegalArgumentException 如果参数无效
      */
     public AIWriter(ICallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
-        if (callLlm == null) {
-            throw new IllegalArgumentException("ICallLlm不能为空");
-        }
-        
-        this.callLlm = callLlm;
-        this.useThink = useThink;
-        this.MAX_REFERENCE_LENGTH = Integer.parseInt(PromptConfig.getPromptOrDefault("maxReferenceLength", "4096"));
-        this.THINKING_BUDGET = Integer.parseInt(PromptConfig.getPromptOrDefault("thinkBudget", "256"));
-        this.DEFAULT_MAX_TOKEN = Integer.parseInt(PromptConfig.getPromptOrDefault("maxToken", "8192"));
-        this.THINKING_ENABLE = Boolean.parseBoolean(PromptConfig.getPromptOrDefault("thinkEnable", "true"));
-        this.isExchange = isExchange;
-        this.maxToken = maxToken > 0 ? maxToken : this.DEFAULT_MAX_TOKEN;
+        super(callLlm, useThink, maxToken, isExchange);
 
-        this.modelType = this.useThink ? PromptConfig.getPromptOrDefault("thinkModel", "") : PromptConfig.getPromptOrDefault("baseModel", "");
-
-        this.writerTemplatePrompt = PromptConfig.getPrompt("writerTemplatePrompt");
         this.refrenceExtractPrompt = PromptConfig.getPrompt("refrenceExtractPrompt");
         this.writerPrompt = PromptConfig.getPrompt("writerPrompt");
-        this.writerTitlePrompt = PromptConfig.getPrompt("writerTitlePrompt");
-        this.writerOtherPrompt = PromptConfig.getPrompt("writerOtherPrompt");
         this.firstFilterPrompt = PromptConfig.getPrompt("firstFilterPrompt");
-        
-    }
+        this.chapterTemplatePrompt = PromptConfig.getPrompt("chapterTemplatePrompt");
+        this.articleTypePrompt = PromptConfig.getPrompt("articleTypePrompt");
+        this.modifyTitlePrompt = PromptConfig.getPrompt("modifyTitlePrompt");
+        this.evaluateQualityPrompt = PromptConfig.getPrompt("evaluateQualityPrompt");
 
-    /*
-     * 生成 JSON 格式提示词
-     * @param promptContent 系统提示词内容
-     * @param content 用户输入内容
-     * @return JSON 格式提示词
-     */
-    private JSONArray buildJsonPrompt(String promptContent, String... content) {
-        if (StringUtils.isBlank(promptContent)) {
-            throw new IllegalArgumentException("系统提示词不能为空");
-        }
-        
-        if (content == null || content.length == 0) {
-            throw new IllegalArgumentException("用户内容不能为空");
-        }
-        
-        JSONArray prompt = new JSONArray();
-
-        // 构建系统消息，去除 system 提示词，避免模型兼容性问题
-        /*
-        JSONObject system = new JSONObject();
-        system.put("role", "system");
-        system.put("content", promptContent);
-        prompt.add(system);
-        */
-
-        // 构建用户消息
-        JSONObject user = new JSONObject();
-        user.put("role", "user");
-        StringBuilder userContent = new StringBuilder();
-        userContent.append(promptContent);
-        for (String item : content) {
-            if (item != null) {
-                userContent.append(item);
-            }
-        }
-        
-        if (userContent.length() == 0) {
-            throw new IllegalArgumentException("用户内容不能为空");
-        }
-        
-        user.put("content", userContent.toString());
-        prompt.add(user);
-
-        return prompt;
-    }
-
-    /*
-     * 修复 JSON 字符串
-     * @param jsonString JSON 字符串
-     * @param endChar 结尾字符
-     * @return 修复后的 JSON 字符串
-     */
-    private String fixJsonString(String jsonString, String endChar) {
-        // 去除 <think> ... </think> 部分，如果有的话
-        Matcher matcher = THINK_PATTERN.matcher(jsonString);
-        jsonString = matcher.replaceAll("");
-
-        // 清理 json 字符串中不合法的符号
-        jsonString = jsonString.replaceAll("```json", "").replaceAll("```", "")
-                .replaceAll("：", ":").replaceAll("，", ",")
-                .replaceAll("“", "\"").replaceAll("”", "\"")
-                .replaceAll("^[\\s\\u3000]+", "").replaceAll("[\\s\\u3000]+$", "")
-                .replaceAll("\\r?\\n$", "");
-
-        // 如果写作模板不以 } 结尾，则添加 }
-        if (!jsonString.endsWith(endChar)) {
-            jsonString += endChar;
-        }
-
-        return jsonString;
-    }
-
-        /*
-     * 安全写入输出流
-     * @param outputStream 输出流
-     * @param content 要写入的内容
-     */
-    private void safeWriteToStream(OutputStream outputStream, String content, boolean isThink) {
-        if (outputStream == null || StringUtils.isBlank(content)) {
-            logger.warn("输出流为空或内容为空，跳过写入");
-            return;
-        }
-        
-        try {
-            // 等待 IO 缓冲区刷新
-            Thread.sleep(200); 
-            // 分块写入输出流，避免写入过长的内容导致输出流阻塞（慢速网络情况下）
-            for(int i = 0; i < content.length() / 3 + 1; i++){
-                String chunk = content.substring(i * 3, Math.min((i * 3 + 3), content.length()));
-                if(isThink){
-                    outputStream.write(("<think>" + chunk + "</think>").getBytes(StandardCharsets.UTF_8));
-                }else{
-                    outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
-                }
-                outputStream.flush();
-            }
-            // 等待 IO 缓冲区刷新
-            Thread.sleep(200); 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IOException e) {
-            throw new RuntimeException("写入输出流失败: " + e.getMessage(), e);
-        }
-    }
-
-    private String invokeLlm(JSONArray prompt, OutputStream outputStream, boolean onlyThinking, boolean jsonObject) throws RuntimeException {
-        JSONObject extParams = new JSONObject();
-        extParams.put("model_type", this.modelType);
-        if (jsonObject) {
-            extParams.put("response_format", "json_object");
-        }
-        extParams.put("only_thinking", onlyThinking);
-        if (this.THINKING_BUDGET > 0) {
-            extParams.put("thinking_budget", this.THINKING_BUDGET);
-        }
-        extParams.put("enable_thinking", this.THINKING_ENABLE);
-
-        String result = this.callLlm.callOpenAiInterface(this.useThink, maxToken, isExchange, prompt, extParams, outputStream);
-        if (StringUtils.isBlank(result)) {
-            throw new RuntimeException("大模型返回的结果为空");
-        }
-
-        return result;
+        this.articleCategory = PromptConfig.getPrompt("articleCategory");
+        this.optimizeRules = PromptConfig.getPrompt("optimizeRules");
     }
     
-    /*
-     * 生成写作模板
-     * @param exemplaryArticle 范文
-     * @return 写作模板
+    /**
+     * 获取文章体裁
+     * @param content 文章内容
+     * @param outputStream 输出流
+     * @return 文章体裁
      */
-    private JSONObject buildWriterTemplate(String exemplaryArticle, OutputStream outputStream) throws RuntimeException {
-        if (StringUtils.isBlank(exemplaryArticle)) {
-            throw new IllegalArgumentException("范文内容不能为空");
-        }
-        
-        JSONArray prompt = buildJsonPrompt(this.writerTemplatePrompt, 
-                        String.format("\n【范文】：\n%s\n\n", exemplaryArticle));
-
+    private JSONObject getArticleType(String content, OutputStream outputStream) throws RuntimeException {
+        JSONArray prompt = buildJsonPrompt(this.articleTypePrompt, 
+                            String.format("\n【文章内容】：\n%s\n", content));
+        String result = invokeLlm(prompt, outputStream, true, true);
         try {
-            String template = invokeLlm(prompt, outputStream, true, true);
-
-            template = fixJsonString(template, "}");
-
-            // 验证返回的模板是否为有效JSON
-            try {
-                JSONObject templateJson = JSON.parseObject(template);
-
-                if (templateJson == null) {
-                    throw new IllegalArgumentException("写作模板JSON解析失败");
-                }
-                
-                if (!templateJson.containsKey("outline")) {
-                    throw new IllegalArgumentException("写作模板中缺少outline字段");
-                }
-
-                logger.debug("生成写作模板成功: {}", template);
-
-                return templateJson;
-            } catch (Exception e) {
-                logger.error("大模型返回的写作模板不是有效JSON，返回原始内容: {} \n", template);
-                throw new RuntimeException("大模型返回的写作模板格式错误", e);
-            }
+            logger.info("获取文章体裁成功: {}", result);
+            return JSON.parseObject(result);
         } catch (Exception e) {
-            throw new RuntimeException("生成写作模板失败: " + e.getMessage(), e);
+            logger.error("获取文章体裁失败，解析JSON失败: {} \n", result, e);
+            throw new RuntimeException("获取文章体裁失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 检查范文是否可作为写作模板
+     * @param exemplaryArticle 范文
+     * @return 是否可作为写作模板
+     */
+    private String getArticleTitle(String exemplaryArticle, String articleTitle, String articleType, OutputStream outputStream) throws RuntimeException {
+        if (StringUtils.isBlank(exemplaryArticle)) {
+            throw new IllegalArgumentException("范文不能为空");
+        }
+
+        if (StringUtils.isBlank(articleTitle)) {
+            throw new IllegalArgumentException("文章标题不能为空");
+        }
+        // 范文截取
+        String exemplaryArticleText = exemplaryArticle.substring(0, Math.min(exemplaryArticle.length(), (int)(this.MAX_REFERENCE_LENGTH * 0.6)));
+        
+        try {
+            this.exemplaryArticleTypeJson = getArticleType(exemplaryArticleText, outputStream);
+            this.writingArticleTypeJson = getArticleType(String.format("\n【文章内容】：\n文章标题：%s\n文章类型：%s\n", articleTitle, articleType), outputStream);
+            
+            /* 检查文体类别是否一致 */
+            String exemplaryArticleCategory = this.exemplaryArticleTypeJson.getString("category");
+            String writingArticleCategory = this.writingArticleTypeJson.getString("category");
+            if (exemplaryArticleCategory.equals(writingArticleCategory)) 
+                return articleTitle;
+
+            /* 修改标题 */
+            JSONArray prompt = buildJsonPrompt(this.modifyTitlePrompt, 
+                        String.format("\n【指定的文体类别】：\n%s\n", this.exemplaryArticleTypeJson.getString("category")),
+                        String.format("\n【文体类别】：\n%s\n", this.articleCategory),
+                        String.format("\n【创作标题】：\n%s\n", articleTitle));
+            String result = invokeLlm(prompt, outputStream, true, false);
+            logger.info("修改标题成功: {}", result);
+
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("检查范文是否可作为写作模板失败: " + e.getMessage(), e);
         }
     }
 
-    /*
+    /**
+     * 创建单个章节的写作模板
+     * @param exemplaryChapterJson 范文章节
+     * @param outputStream 输出流
+     * @return 写作模板
+     */
+    private JSONObject buildWriterTemplateByChapter(JSONObject exemplaryChapterJson, OutputStream outputStream) throws RuntimeException {
+        try {
+            String text = exemplaryChapterJson.getString("text");
+            if (StringUtils.isBlank(text)) {
+                throw new IllegalArgumentException("范文章节不能为空");
+            }
+
+            JSONArray prompt = buildJsonPrompt(this.chapterTemplatePrompt, 
+                            String.format("\n【范文章节】：\n%s\n", text));
+            String template = invokeLlm(prompt, outputStream, true, true);
+
+            JSONObject templateJson = JSON.parseObject(template);
+            if (exemplaryChapterJson.containsKey("title")) {
+                templateJson.put("title", exemplaryChapterJson.getString("title"));
+            } else {
+                templateJson.put("title", "段落");
+            }
+
+            return templateJson;
+        } catch (Exception e) {
+            logger.error("生成章节模板失败: {} \n", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
      * 快速从参考内容中筛选出符合要求的片段
      * @param fragmentCollection 片段集合
      * @param writingTemplate 写作模板
      * @return 筛选出的参考内容
      */
-    private String firstFilterRefrenceContent(JSONArray fragmentCollection, String writingTemplate, OutputStream outputStream) throws RuntimeException {
-        if (StringUtils.isBlank(writingTemplate)) {
-            throw new IllegalArgumentException("写作模板不能为空");
-        }
-        
+    private String firstFilterRefrenceContent(JSONArray fragmentCollection, String articleTitle, JSONObject writingTemplate, OutputStream outputStream) throws RuntimeException {        
         if (fragmentCollection == null || fragmentCollection.isEmpty()) {
             logger.warn("片段集合为空，返回空字符串");
             return "";
         }
-
-        JSONArray prompt = buildJsonPrompt(this.firstFilterPrompt, 
-                        String.format("\n【写作模板】：\n%s\n", writingTemplate), 
-                        String.format("\n【片段集合】：\n%s\n", fragmentCollection.toJSONString()));
         
         try {
-            String filter = invokeLlm(prompt, outputStream, true, true);
-
-            filter = fixJsonString(filter, "]");
-
-             try {
-                JSONArray filterArray = JSON.parseArray(filter);
-                if (filterArray == null || filterArray.isEmpty()) 
-                    return "";
-
-                StringBuilder filterText = new StringBuilder();
-                for (int i = 0; i < filterArray.size(); i++) {
-                    JSONObject filterFragmentJson = filterArray.getJSONObject(i);
-                    int index = filterFragmentJson.getInteger("index");
-                    for (int j = 0; j < fragmentCollection.size(); j++) {
-                        JSONObject fragmentCollectionJson = fragmentCollection.getJSONObject(j);
-                        if (fragmentCollectionJson.getInteger("index") == index) {
-                            filterText.append(fragmentCollectionJson.getString("text")).append("\n");
-                        }
-                    }
+            StringBuffer fragmentText = new StringBuffer();
+            for (int i = 0; i < fragmentCollection.size(); i++) {
+                JSONObject fragmentCollectionJson = fragmentCollection.getJSONObject(i);
+                if (fragmentCollectionJson.containsKey("text")) {
+                    fragmentText.append(fragmentCollectionJson.getString("text")).append("\n");
                 }
-
-                logger.debug("筛选片段成功: {}", filterText.toString());
-
-                return filterText.toString();
-            } catch (Exception e) {
-                logger.error("大模型返回的片段筛选不是有效JSON，返回原始内容: {} \n", filter, e);
             }
-            
+
+            JSONArray prompt = buildJsonPrompt(this.firstFilterPrompt, 
+                        String.format("\n【文章标题】：\n%s\n", articleTitle), 
+                        String.format("\n【章节功能描述】：\n%s\n", writingTemplate.getString("function")), 
+                        String.format("\n【章节关键信息槽位】：\n%s\n", writingTemplate.getJSONArray("required_slots").toJSONString()), 
+                        String.format("\n【参考内容】：\n%s\n", fragmentText.toString()));
+
+            String filter = invokeLlm(prompt, outputStream, true, false);
+            if (StringUtils.isBlank(filter)) {
+                return "";
+            }
+            logger.debug("初筛参考内容成功: {}", filter);
+
+            return filter;
         } catch (Exception e) {
             logger.error("筛选片段失败: {} \n", e.getMessage(), e);
         }
@@ -314,14 +197,14 @@ public class AIWriter {
         return "";
     }
 
-    /*
-     * 提取参考内容
+    /**
+     * 萃取参考内容
      * @param title 文章标题
      * @param refrenceContent 参考内容
      * @param writingTemplate 写作模板
      * @return 参考内容提取
      */
-    private String extractRefrenceContent(String title, String refrenceContent, String writingTemplate, OutputStream outputStream) throws RuntimeException {
+    private String extractRefrenceContent(String refrenceContent, JSONObject writingTemplate, OutputStream outputStream) throws RuntimeException {
         if (StringUtils.isBlank(refrenceContent)) {
             logger.warn("参考内容为空，返回大模型生成的参考内容");
             safeWriteToStream(outputStream, "\n【参考内容为空，由大模型生成参考内容】\n", true);
@@ -329,15 +212,11 @@ public class AIWriter {
         }
         
         JSONArray prompt = buildJsonPrompt(this.refrenceExtractPrompt, 
-                        String.format("\n【文章标题】：\n%s\n", title), 
-                        String.format("\n【写作模板】：\n%s\n", writingTemplate), 
+                        String.format("\n【章节关键信息槽位】：\n%s\n", writingTemplate.getJSONArray("required_slots").toJSONString()), 
                         String.format("\n【参考内容】：\n%s\n", refrenceContent));
         
         try {
             String refrence = invokeLlm(prompt, outputStream, true, true);
-
-            refrence = fixJsonString(refrence, "}");
-            
             logger.debug("提取参考内容成功: {}", refrence);
 
             return refrence;
@@ -348,7 +227,63 @@ public class AIWriter {
         return "";
     }
 
-    /*
+    /**
+     * 写作章节
+     * @param title 文章标题
+     * @param writingTemplate 写作模板
+     * @param refrence 参考内容
+     * @param writingCause 内容要求
+     * @param wordsLimit 字数限制
+     * @param outputStream 输出流
+     * @return 写作章节内容
+     */
+    private String writeChapter(String title, JSONObject writingTemplate, String refrence, String writingCause, int wordsLimit, boolean onlyThinking, OutputStream outputStream) {
+        if (writingTemplate.getString("title").equals("引言")) {
+            writingCause = String.format("%s\n%s", "引言要求：开篇点题，背景+论点，一个自然段，≤200字。", writingCause);
+            wordsLimit = -1;
+        }
+
+        String wordsLimitPrompt = "";
+        if (wordsLimit > 0) {
+            wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，不能太多，不能太少，按照字数要求写作。\n", wordsLimit);
+        }
+
+        JSONArray prompt = buildJsonPrompt(this.writerPrompt, 
+                                            String.format("\n【文章标题】：\n%s\n", title), 
+                                            String.format("\n【语言风格】：\n%s\n", this.exemplaryArticleTypeJson.getString("style")),
+                                            String.format("\n【阅读对象】：\n%s\n", this.writingArticleTypeJson.getString("reader")),
+                                            String.format("\n【写作模板】：\n%s\n", writingTemplate), 
+                                            String.format("\n【参考内容】：\n%s\n", refrence),
+                                            String.format("\n【内容要求】：\n%s\n", writingCause),
+                                            wordsLimitPrompt);
+
+        String content = invokeLlm(prompt, outputStream, onlyThinking, false);
+
+        return content;
+    }
+
+    /**
+     * 评估写作质量
+     * @param content 文章内容
+     * @param outputStream 输出流
+     * @return 评估结果
+     */
+    private JSONObject evaluateWritingQuality(String content, String writingTemplate, OutputStream outputStream) throws RuntimeException {
+        JSONArray prompt = buildJsonPrompt(this.evaluateQualityPrompt, 
+                        String.format("\n【文章内容】：\n%s\n", content),
+                        String.format("\n【写作模板】：\n%s\n", writingTemplate),
+                        String.format("\n【语言风格】：\n%s\n", this.exemplaryArticleTypeJson.getString("style")),
+                        String.format("\n【优化规则】：\n%s\n", this.optimizeRules));
+        String result = invokeLlm(prompt, outputStream, true, true);
+        try {
+            return JSON.parseObject(result);
+        } catch (Exception e) {
+            logger.error("评估写作质量失败，解析JSON失败: {} \n", result, e);
+            throw new RuntimeException("评估写作质量失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 验证ChatParams的完整性
      * @param chatParams 要验证的参数
      * @throws IllegalArgumentException 如果参数无效
@@ -361,6 +296,8 @@ public class AIWriter {
         if (StringUtils.isBlank(chatParams.getImitative())) {
             throw new IllegalArgumentException("范文内容不能为空");
         }
+
+        // logger.info("范文内容: {}", chatParams.getImitative());
         
         if (StringUtils.isBlank(chatParams.getTitle())) {
             throw new IllegalArgumentException("标题不能为空");
@@ -385,7 +322,7 @@ public class AIWriter {
         }
         
         String exemplaryArticle = chatParams.getImitative();
-        
+
         // 拼接参考内容
         String refrenceContent = "";
         if (chatParams.getReferences() != null) {
@@ -399,121 +336,115 @@ public class AIWriter {
             refrenceContent += chatParams.getBriefReference().trim() + "\n";
         }
 
+        SpliteText spliteText = new SpliteText(refrenceContent, false, true, true,
+                this.callLlm, this.useThink, this.maxToken, this.isExchange);
+
         // 参考内容分块，每块不超过MAX_REFERENCE_LENGTH
         JSONArray refrenceContentArray = new JSONArray();
         if (StringUtils.isNotBlank(refrenceContent)) {
-            SpliteText spliteText = new SpliteText(refrenceContent);
-            refrenceContentArray = spliteText.mergeBatch(this.MAX_REFERENCE_LENGTH);
+            refrenceContentArray = spliteText.mergeParagraph(this.MAX_REFERENCE_LENGTH);
             if (refrenceContentArray.isEmpty()) {
                 logger.warn("参考内容分块失败，返回空数组");
             }
         }
 
         // 内容要求
-        String writingCause = chatParams.getCause();
+        StringBuffer writingCauseBuffer = new StringBuffer();
+        if (StringUtils.isBlank(chatParams.getCause())) {
+            writingCauseBuffer.append("");
+        } else {
+            writingCauseBuffer.append(chatParams.getCause()).append("\n");
+        }
+        String writingCause = writingCauseBuffer.toString();
 
         try {
             // 获取格式要求和标题
             String articleTitle = chatParams.getTitle();
             String articleType = chatParams.getGwwz();
+            if (StringUtils.isBlank(articleType)) {
+                articleType = "";
+            }
             int articleLength = chatParams.getArticleLength();
 
-            String content = "";
+            StringBuffer contentBuffer = new StringBuffer();
+
+            // 检查范文是否可作为写作模板，如果不能，则修改标题符合范文文体类别
+            safeWriteToStream(outputStream, "\n【 检查写作模板是否可用于指导文章创作 ... 】\n", true);
+            String title = getArticleTitle(exemplaryArticle, articleTitle, articleType, outputStream);
+            if (!title.trim().equals(articleTitle.trim())) {
+                safeWriteToStream(outputStream, 
+                    String.format("\n【 范文不能作为写作模板（文体、用途、主题不一致），修改标题为：%s 】\n\n【范文的体裁】：\n%s\n\n【创作文章的体裁】：\n%s\n", 
+                                title, this.exemplaryArticleTypeJson.getString("category"), this.writingArticleTypeJson.getString("category")), 
+                    true);
+                articleTitle = title;
+            }
+
 
             // 生成标题
-            try {
-                safeWriteToStream(outputStream, String.format("\n【 生成标题 ... 】\n"), true);
-                if (StringUtils.isNotBlank(articleType) && GW_PATTERN.matcher(articleType).matches()) {
-                    JSONArray titlePrompt = buildJsonPrompt(this.writerTitlePrompt, 
-                                                            String.format("\n【文章标题】：\n%s\n", articleTitle), 
-                                                            String.format("\n【文章类型】：\n%s\n", articleType));
+            safeWriteToStream(outputStream, String.format("\n%s\n\n", articleTitle), false);
+            contentBuffer.append(articleTitle).append("\n");
 
-                    articleTitle = invokeLlm(titlePrompt, outputStream, true, false);
-                }   
-                content += articleTitle;
-                safeWriteToStream(outputStream, String.format("\n%s\n\n", articleTitle), false);
-            } catch (Exception e) {
-                logger.error("生成标题失败", e);
-                content += articleTitle;
-                safeWriteToStream(outputStream, String.format("\n%s\n\n", articleTitle), false);
+            // 范文分块
+            spliteText = new SpliteText(exemplaryArticle, true, false, false,
+                this.callLlm, this.useThink, this.maxToken, this.isExchange);
+            JSONArray arrayJson = new JSONArray();
+            if (spliteText.checkIsHeading()) {
+                arrayJson = spliteText.splitTextByChapter(MAX_REFERENCE_LENGTH);
             }
-            
+            if (!spliteText.checkIsHeading() || arrayJson.isEmpty()) {
+                arrayJson = spliteText.splitTextByParagraph(MAX_REFERENCE_LENGTH);
+            }
+
             // 生成正文
-            safeWriteToStream(outputStream, "\n【 依据范文，创建文章写作大纲 ... 】\n", true);
-            JSONObject writingTemplateJson = buildWriterTemplate(exemplaryArticle, outputStream);
-            JSONArray outline = writingTemplateJson.getJSONArray("outline");
-            
-            if (outline == null || outline.isEmpty()) {
-                throw new RuntimeException("写作模板中没有找到outline");
-            }
-
-            for (int i = 0; i < outline.size(); i++) {
+            for (int i = 0; i < arrayJson.size(); i++) {
                 try {
-                    JSONObject subwritingTemplate = outline.getJSONObject(i);
-                    if (subwritingTemplate == null) {
-                        logger.warn("第{}个outline元素为空，跳过", i);
-                        continue;
+                    JSONObject exemplaryChapterJson = arrayJson.getJSONObject(i);
+                    if (exemplaryChapterJson == null) {
+                        throw new IllegalArgumentException("范文章节为空");
                     }
-                    
-                    String subtitle = subwritingTemplate.getString("title");
+
+                    // 创建章节的写作模板
+                    safeWriteToStream(outputStream, String.format("\n【 分析范文章节《%s》 ... 】\n", exemplaryChapterJson.getString("title")), true);
+                    JSONObject writingTemplateJson = buildWriterTemplateByChapter(exemplaryChapterJson, nullOutputStream);
+                    if (writingTemplateJson == null) {
+                        throw new IllegalArgumentException("范文章节的写作模板为空");
+                    }
+
+                    String subtitle = writingTemplateJson.getString("title");
                     if (StringUtils.isBlank(subtitle)) {
-                        logger.warn("第{}个outline元素的title为空，跳过", i);
-                        continue;
+                        throw new IllegalArgumentException("范文章节的写作模板title为空");
                     }
+
+                    logger.info("范文章节的写作模板: {}", writingTemplateJson.toJSONString());
 
                     // 初筛参考内容，避免参考内容过多导致大模型无法处理
                     String refrenceText = "";
                     for (int j = 0; j < refrenceContentArray.size(); j++) {
-                        safeWriteToStream(outputStream, String.format("\n【 初筛章节<<%s>>的参考内容 ... 】\n", subtitle), true);
+                        safeWriteToStream(outputStream, String.format("\n【 初筛章节《%s》的参考内容 ... 】\n", subtitle), true);
                         JSONArray refrenceContentJson = refrenceContentArray.getJSONArray(j);
-                        refrenceText += firstFilterRefrenceContent(refrenceContentJson, subwritingTemplate.toJSONString(), outputStream);
+                        refrenceText += firstFilterRefrenceContent(refrenceContentJson, articleTitle, writingTemplateJson, outputStream);
                     }
                     
                     // 萃取参考内容，供大模型写作使用
-                    safeWriteToStream(outputStream, String.format("\n【 萃取章节<<%s>>的参考内容 ... 】\n", subtitle), true);
-                    String refrence = extractRefrenceContent(articleTitle,refrenceText, subwritingTemplate.toJSONString(), outputStream);
+                    safeWriteToStream(outputStream, String.format("\n【 萃取章节《%s》的参考内容 ... 】\n", subtitle), true);
+                    String refrence = extractRefrenceContent(refrenceText, writingTemplateJson, outputStream);
 
                     // 章节写作
-                    safeWriteToStream(outputStream, String.format("\n【依据参考内容】：\n%s\n【章节<<%s>>写作中 ... 】\n", refrence, subtitle), true);                                   
-                    safeWriteToStream(outputStream, String.format("\n%s\n", subtitle), false);
-                    String wordsLimit = "";
-                    if (articleLength > 0) {
-                        wordsLimit = String.format("\n要求内容长度：\n%d 字之间，不能太多，不能太少，一点要按照字数要求写作。\n", articleLength);
+                    safeWriteToStream(outputStream, String.format("\n【依据参考内容】：\n%s\n【章节<<%s>>写作中 ... 】\n", refrence, subtitle), true);
+                    if (!subtitle.matches("^(引言|段落\\s*)$")) {                                   
+                        safeWriteToStream(outputStream, String.format("\n%s\n", subtitle), false);
                     }
-                    JSONArray writePrompt = buildJsonPrompt(writerPrompt, 
-                                                            String.format("\n【文章标题】：\n%s\n", articleTitle), 
-                                                            String.format("\n【写作模板】：\n%s\n", subwritingTemplate.toJSONString()), 
-                                                            String.format("\n【参考内容】：\n%s\n", refrence),
-                                                            String.format("\n【内容要求】：\n%s\n", writingCause),
-                                                            wordsLimit);
 
-                    content += invokeLlm(writePrompt, outputStream, false, false);
+                    String chapterContent = writeChapter(articleTitle, writingTemplateJson, refrence, writingCause, articleLength, false, outputStream);
+                    contentBuffer.append(chapterContent).append("\n");
+                    
                 } catch (Exception e) {
                     logger.error("生成第{}个章节失败，跳过该章节", i, e);
                     continue;
                 }
             }
 
-            // 生成其他要素
-            if (StringUtils.isNotBlank(articleType) && GW_PATTERN.matcher(articleType).matches()) {
-                try {
-                    safeWriteToStream(outputStream, "\n【生成正文后要素 ... 】\n", true);
-                    JSONArray otherPrompt = buildJsonPrompt(this.writerOtherPrompt, 
-                                                            String.format("\n如正文之后要包含时间要素，请根据当前时间 %s 生成时间要素。\n", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))),
-                                                            String.format("\n【文章标题】：\n%s\n", articleTitle),
-                                                            String.format("\n【文章类型】：\n%s\n", articleType));
-
-                    String other = invokeLlm(otherPrompt, outputStream, true, false);
-                    if (StringUtils.isNotBlank(other)) {
-                        safeWriteToStream(outputStream, String.format("\n%s\n", other), false);
-                        content += other;
-                    }
-                } catch (Exception e) {
-                    logger.error("生成其他要素失败", e);
-                }
-            }
-
-            return content;
+            return contentBuffer.toString();
         } catch (Exception e) {
             throw new RuntimeException("生成文章失败: " + e.getMessage(), e);
         }
@@ -522,51 +453,59 @@ public class AIWriter {
     // 本地测试用
     /*
     public static void main(String[] args) {
-
         try {
-            Path path = Paths.get("C:\\Users\\xman\\Desktop\\test.txt");
+            String title = "安徽省民政厅万相公文项目建设方案";
+            Path path = Paths.get("C:\\Users\\xman\\Desktop\\test2.txt");
             String text = Files.readAllLines(path, Charset.forName("UTF-8")).stream().collect(Collectors.joining("\n"));
 
-            AIWriter aiWriter = new AIWriter(new CallLlm(), false, 8192, false);
+            AIWriter aiWriter = new AIWriter(new CallLlm(),true, 8192, false);
+
+            System.out.println("=======================检查范文是否可作为写作模板====================");
+            String newTitle = aiWriter.getArticleTitle(text, title, "", nullOutputStream);
+            System.out.println("范文" + (newTitle.equals(title) ? "可作为" : "不可作为") + "文章《" + title + "》创作的模板，修改后的标题为：" + newTitle);
+            if (!newTitle.equals(title)) {
+                title = newTitle;
+            }
+
+            JSONArray arrayJson = new JSONArray();
+            SpliteText spliteText = new SpliteText(text, true, false, false, new CallLlm(), true, 4096, false);
+            if (spliteText.checkIsHeading()) {
+                arrayJson = spliteText.splitTextByChapter(4096);
+            } 
+            if (!spliteText.checkIsHeading() || arrayJson.isEmpty()) {
+                arrayJson = spliteText.splitTextByParagraph(4096);
+            }
 
             System.out.println("=======================生成写作模板====================");
-            JSONObject writerTemplate = aiWriter.buildWriterTemplate(text, new OutputStream() {
-                @Override
-                public void write(int b) throws IOException {
-                }
-            });
+            JSONObject writerTemplate = aiWriter.buildWriterTemplateByChapter(arrayJson.getJSONObject(0), nullOutputStream);
             System.out.println(writerTemplate.toJSONString());
-
-            String subwritingTemplate = writerTemplate.getJSONArray("outline").getJSONObject(0).toJSONString();
+            
 
             System.out.println("=======================分块参考内容====================");
-            SpliteText spliteText = new SpliteText(text);
-            JSONArray refrenceBatchArray = spliteText.mergeBatch(4096);
+            JSONArray refrenceBatchArray = spliteText.mergeParagraph(4096);
             System.out.println(refrenceBatchArray);
             JSONArray refrenceContentArray = refrenceBatchArray.getJSONArray(0);
 
             System.out.println("=======================初筛参考内容====================");
-            String firstFilterRefrenceContent = aiWriter.firstFilterRefrenceContent(refrenceContentArray, subwritingTemplate, new OutputStream() {
-                @Override
-                public void write(int b) throws IOException {
-                }
-            });
+            System.out.println("章节标题：" + writerTemplate.getString("title"));
+            String firstFilterRefrenceContent = aiWriter.firstFilterRefrenceContent(refrenceContentArray, title, writerTemplate, nullOutputStream);
             System.out.println(firstFilterRefrenceContent);
-            
 
             System.out.println("=======================萃取参考内容====================");
-            String refrence = aiWriter.extractRefrenceContent("全面提升干部能力素质专题党课讲稿", firstFilterRefrenceContent, subwritingTemplate, new OutputStream() {
-                @Override
-                public void write(int b) throws IOException {
-                }
-            });
+            String refrence = aiWriter.extractRefrenceContent(firstFilterRefrenceContent, writerTemplate, nullOutputStream);
             System.out.println(refrence);
-            
+
+            // String refrence = "";
+            System.out.println("=======================章节写作====================");
+            String content = aiWriter.writeChapter(title, writerTemplate, refrence, "", -1, false, nullOutputStream);
+            System.out.println(content);
+
+            System.out.println("=======================评估写作质量====================");
+            JSONObject evaluateQuality = aiWriter.evaluateWritingQuality(content, writerTemplate.toJSONString(), nullOutputStream);
+            System.out.println(evaluateQuality.toJSONString());
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
     }
-         */
-    
+    */
 }

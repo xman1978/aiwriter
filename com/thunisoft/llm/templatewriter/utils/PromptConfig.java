@@ -1,8 +1,6 @@
 package com.thunisoft.llm.templatewriter.utils;
 
 import java.util.Map;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.atomic.AtomicReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +27,34 @@ public class PromptConfig {
     
     // 缓存失效标记，避免重复加载
     private static volatile boolean cacheInvalidated = false;
+        
+    private static final Path EXTERNAL_PROMPT_PATH;
+    static {
+        String externalPromptPath = null;
+        try {
+            // 从AIWriter.class 所在的包下读取prompt.yml文件
+            externalPromptPath = PromptConfig.class.getClassLoader().getResource("prompt.yml").getPath();
+        } catch (Exception e1) {
+            logger.warn("读取 jar 包中的 prompt.yml 文件失败");
+            try {
+                externalPromptPath = System.getProperty("ai.prompt.file.path");
+            } catch (Exception e2) {
+                logger.warn("读取系统属性 ai.prompt.file.path 失败");
+            }
+        }
+
+        // 本地测试用
+        // String externalPromptPath = "D:\\Studio\\Document\\python\\code\\gwbj\\src\\com\\thunisoft\\llm\\templatewriter\\prompt.yml";
+
+        if (StringUtils.isBlank(externalPromptPath)) {
+            throw new RuntimeException("未指定 prompt.yml 配置文件路径，请设置系统属性 ai.prompt.file.path");
+        }
+
+        EXTERNAL_PROMPT_PATH = Paths.get(externalPromptPath);
+        if (!Files.exists(EXTERNAL_PROMPT_PATH) || !Files.isRegularFile(EXTERNAL_PROMPT_PATH)) {
+            throw new RuntimeException("外部配置文件不存在: " + externalPromptPath);
+        }
+    }
     
     /**
      * 获取提示词配置
@@ -72,29 +98,16 @@ public class PromptConfig {
     private static Map<String, Object> loadPromptConfig() throws RuntimeException {
         Yaml yaml = new Yaml();
         
-        // 本地测试用
-        // String externalPromptPath = "D:\\Studio\\Document\\python\\code\\gwbj\\src\\com\\thunisoft\\llm\\templatewriter\\prompt.yml";
-        String externalPromptPath = System.getProperty("ai.prompt.file.path");
-        if (StringUtils.isBlank(externalPromptPath)) {
-            throw new RuntimeException("未指定外部配置文件路径，请设置系统属性 ai.prompt.file.path");
-        }
-
-        Path path = Paths.get(externalPromptPath);
-        if (!Files.exists(path) || !Files.isRegularFile(path)) {
-            throw new RuntimeException("外部配置文件不存在: " + externalPromptPath);
-        }
-        
         try {
-            long currentModifiedTime = Files.getLastModifiedTime(path).toMillis();
-            
             // 检查文件是否真的被修改了
+            long currentModifiedTime = Files.getLastModifiedTime(EXTERNAL_PROMPT_PATH).toMillis();
             if (promptCache.get() != null && currentModifiedTime <= lastModifiedTime && !cacheInvalidated) {
                 return promptCache.get();
             }
     
             // 执行文件加载
             Map<String, Object> newCache;
-            try (FileInputStream fis = new FileInputStream(path.toFile())) {
+            try (FileInputStream fis = new FileInputStream(EXTERNAL_PROMPT_PATH.toFile())) {
                 newCache = yaml.load(fis);
             }
             
@@ -102,8 +115,7 @@ public class PromptConfig {
             promptCache.set(newCache);
             lastModifiedTime = currentModifiedTime;
             cacheInvalidated = false;
-            
-            logger.debug("从外部文件重新加载提示词配置: {}", externalPromptPath);
+
             return newCache;
             
         } catch (Exception e) {

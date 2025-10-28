@@ -453,8 +453,8 @@ public class FdqcController extends AIBaseController {
         try(OutputStream output = response.getOutputStream()){
             StringBuilder answer_content = new StringBuilder();
             StringBuilder prompt_content = new StringBuilder();
-            // xman: 仿写优化
-            if (chatParams.getType().contains(ConstV2.QW) && StringUtils.isNotBlank(chatParams.getImitative()) )  {
+            // xman: 仿写优化(参考范文全文写作，需要提供范文，不包括大纲)
+            if (chatParams.getType().contains(ConstV2.QW) && StringUtils.isBlank(chatParams.getOutline()) && StringUtils.isNotBlank(chatParams.getImitative()) )  {
                 output.flush();
                 AIWriter aiWriter = new AIWriter(callLlm, chatParams.isUseThink(), -1, chatParams.isExchange());
                 answer_content.append(aiWriter.writerArticle(chatParams, output));

@@ -102,9 +102,10 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
     /*
     private void initParams(){
         this.debug = false;
-        this.modeName = "GLM-4-Flash";
+        this.modeName = "qwen3:30b-instruct";
+        // this.thinkModeName = "deepseek-v3.1";
         this.thinkModeName = "qwen3-30b-a3b-thinking-2507";
-        this.token = "7e19583e0c47536d3fa294ff243ceb5e.RKGLq81L2icEZHTn";
+        this.token = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
         this.thinkToken = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
         this.temperature = 0;
         this.top_k = -1;
@@ -115,13 +116,14 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.stream = true;
         this.contianThinkLable = false;
         this.forceThink = false;
-        this.url = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
-        this.thinkUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+        this.url = "http://192.168.0.158:11434/v1/chat/completions";
+        this.thinkUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
         this.replaceEnable = false;
         this.thinkModelType = "common";
         this.baseModelType = "common";
     }
     */
+    
     private void initParams(){
         chatLlmParams.initParams();
         this.debug = chatLlmParams.getDebug();
@@ -144,7 +146,7 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.thinkModelType = chatLlmParams.getThinkModelType();
         this.baseModelType = chatLlmParams.getBaseModelType();
     }
-  
+
     @Autowired
     private ReplaceWordService replaceWordService;
 
@@ -196,11 +198,21 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         }
         // xman: qwen3 是否开启思考模式
         if(useThink && extParams.containsKey("enable_thinking") && modelType.matches("^qwen3$")) {
+            // 阿里云模型支持的参数
             params.put("enable_thinking", extParams.getBooleanValue("enable_thinking"));
+            // 火山引擎模型支持的参数
+            params.put("thinking", new JSONObject().put("type", extParams.getBooleanValue("enable_thinking") ? "enabled" : "disabled"));
+            // OpenRouter模型支持的参数
+            params.put("reasoning", new JSONObject().put("enabled", extParams.getBooleanValue("enable_thinking")));
+            // ollama模型支持的参数
+            params.put("think", extParams.getInteger("enable_thinking"));
         }
         // xman: qwen3 可以限制思考长度
         if(useThink && extParams.containsKey("thinking_budget") && modelType.matches("^qwen3$")){
+            // 阿里云模型支持的参数
             params.put("thinking_budget", extParams.getInteger("thinking_budget"));
+            // ollama模型支持的参数
+            params.put("think", "low");
         }
         // xman: 如果只是给内部程序使用，则只需要输出思考过程到用户界面，不输出回答到用户界面
         boolean onlyThinking = false;
@@ -247,16 +259,31 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                         if(messagesInfo.containsKey("reasoning_content")){
                             String content = object.getJSONObject("message").getString("reasoning_content");
                             String r = replaceHalfPunc(content);
-                            answer += r;
-                            outputStream.write(r.getBytes(StandardCharsets.UTF_8));
+                            // xman: 区分思考过程和回答
+                            String thinkingContent = String.format("<think>%s</think>", r);
+                            answer += thinkingContent;
+                            outputStream.write(thinkingContent.getBytes(StandardCharsets.UTF_8));
                             outputStream.flush();
-                        }else{
-                            String content = object.getJSONObject("message").getString("content");
+                        } else if (messagesInfo.containsKey("reasoning")) {
+                            // xman: 适配 ollama v0.12.6
+                            String content = object.getJSONObject("message").getString("reasoning");
                             String r = replaceHalfPunc(content);
-                            answer += r;
-                            outputStream.write(r.getBytes(StandardCharsets.UTF_8));
+                            // xman: 区分思考过程和回答
+                            String thinkingContent = String.format("<think>%s</think>", r);
+                            answer += thinkingContent;
+                            outputStream.write(thinkingContent.getBytes(StandardCharsets.UTF_8));
                             outputStream.flush();
                         }
+
+                        String content = object.getJSONObject("message").getString("content");
+                        String r = replaceHalfPunc(content);
+                        // xman: 区分思考过程和回答
+                        if (r.contains("</think>") && !r.trim().startsWith("<think>")) {
+                            r = String.format("<think>%s", r);
+                        }
+                        answer += r;
+                        outputStream.write(r.getBytes(StandardCharsets.UTF_8));
+                        outputStream.flush();
                     } catch(JSONException e) {
                         logger.error("【大模型调用】非流式结果解析异常，解析内容：{}", result, e);
                     }
@@ -341,11 +368,11 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                                             //这里兼容一下强制思考的模式
                                             if(forceThink && delta.containsKey("role") && StringUtils.equals(delta.getString("role"), "assistant")){
                                                 if((!delta.containsKey("content") || StringUtils.isBlank(delta.getString("content")) )
-                                                        && !delta.containsKey("reasoning_content") && isFirstOutput){
+                                                        && !delta.containsKey("reasoning_content") && !delta.containsKey("reasoning") && isFirstOutput){
                                                     logger.info("强制思考模式， 放入一个<think>");
                                                     isFirstOutput = false;
                                                     delta.put("content", "<think>");
-                                                } else if (forceThink && !delta.containsKey("reasoning_content") && isFirstOutput && delta.containsKey("content") && StringUtils.isNotBlank(delta.getString("content"))) {
+                                                } else if (forceThink && !delta.containsKey("reasoning_content") && !delta.containsKey("reasoning") && isFirstOutput && delta.containsKey("content") && StringUtils.isNotBlank(delta.getString("content"))) {
                                                     logger.info("isFirst = {}, delta = {}", isFirstOutput,  delta);
                                                     isFirstOutput = false;
                                                     delta.put("content", "<think>" + delta.getString("content"));
@@ -358,7 +385,14 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                                                 thinkStep += resiningData;
                                                 outputStream.write(("<think>" + resiningData + "</think>").getBytes(StandardCharsets.UTF_8));
                                                 outputStream.flush();
-                                            }else{
+                                            } else if(delta.containsKey("reasoning") && StringUtils.isNotBlank(delta.getString("reasoning"))){
+                                                // xman: 适配 ollama v0.12.6
+                                                String resiningData = delta.getString("reasoning");
+                                                resiningData = replaceHalfPunc(unicodeToCh(resiningData));
+                                                thinkStep += resiningData;
+                                                outputStream.write(("<think>" + resiningData + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                outputStream.flush();
+                                            } else {
                                                 String data = delta.getString("content");
                                                 if(StringUtils.isNotEmpty(data) || "\n".equals(data)|| "\n\n".equals(data)) {
                                                     data = unicodeToCh(data);
