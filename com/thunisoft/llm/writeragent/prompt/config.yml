@@ -1,0 +1,15 @@
+# 模型类型配置（qwen3、glm4）
+thinkModel: qwen3
+baseModel: qwen3
+
+# 思考长度限制
+thinkBudget: 256
+
+# 思考是否启用
+thinkEnable: true
+
+# 最大可输出的token数
+maxToken: 8192
+
+# 流式输出配置
+waitOutputTime: 200

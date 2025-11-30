@@ -188,7 +188,7 @@ refrenceExtractPrompt: |
 
 writerPrompt: | 
   你是一名资深写作助手，长期从事事务性文书、公文及正式方案写作，语言规范、逻辑严谨、表达精确，擅长以自然的书面语构建完整章节内容。
-  系统规则：禁止输出任何思考、解释或中间分析过程、一级标题（title 章节标题）不要输出！！！
+  系统规则：系统规则：仅输出章节内容，不要输出一级标题（title）！！！禁止输出任何思考、解释或中间分析过程。
   任务目标：
   依据以下输入内容，撰写符合正式文体规范的完整章节正文：
   -【文章标题】：明确章节主题；
@@ -273,21 +273,3 @@ evaluateQualityPrompt: |
     "aiTraceSuggestion": "如果 AI 痕迹检测得分高于 3 分，则根据 AI 痕迹评估规则，指出 AI 痕迹存在的问题，并给出具体优化建议"
   }
 
-# 模型类型配置（qwen3、glm4）
-thinkModel: qwen3
-baseModel: qwen3
-
-# 思考长度限制
-thinkBudget: 256
-
-# 思考是否启用
-thinkEnable: true
-
-# 最大可输出的token数
-maxToken: 8192
-
-# 参考文档最大长度
-maxReferenceLength: 4096
-
-# 流式输出配置
-waitOutputTime: 200

@@ -1,4 +1,4 @@
-package com.thunisoft.llm.templatewriter;
+package com.thunisoft.llm.writeragent;
 
 import java.io.OutputStream;
 import java.io.IOException;
@@ -19,14 +19,14 @@ import org.slf4j.LoggerFactory;
 import com.thunisoft.llm.service.ICallLlm;
 import com.thunisoft.llm.domain.ChatParams;
 import com.thunisoft.llm.service.impl.CallLlm;
-import com.thunisoft.llm.templatewriter.utils.SpliteText;
-import com.thunisoft.llm.templatewriter.utils.PromptConfig;
+import com.thunisoft.llm.writeragent.utils.SpliteText;
+import com.thunisoft.llm.writeragent.utils.PromptConfig;
 
 /**
- * AI写作器，用于根据范文和参考内容生成文章
+ * 根据范文和参考内容，生成文章
  */
-public class AIWriter extends AIWriterBase {
-    private static final Logger logger = LoggerFactory.getLogger(AIWriter.class);
+public class TemplateWriter extends AIWriterBase {
+    private static final Logger logger = LoggerFactory.getLogger(TemplateWriter.class);
 
     // private static final String GW_PATTERN = "^(通知|决定|批复|意见|公告|通报|报告|请示|批复|函|纪要|意见|议案|通告|公报|令)$";
 
@@ -51,9 +51,10 @@ public class AIWriter extends AIWriterBase {
      * @param isExchange 是否交换模式
      * @throws IllegalArgumentException 如果参数无效
      */
-    public AIWriter(ICallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
+    public TemplateWriter(ICallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
         super(callLlm, useThink, maxToken, isExchange);
 
+        PromptConfig.setPromptFileName("template.yml");
         this.refrenceExtractPrompt = PromptConfig.getPrompt("refrenceExtractPrompt");
         this.writerPrompt = PromptConfig.getPrompt("writerPrompt");
         this.firstFilterPrompt = PromptConfig.getPrompt("firstFilterPrompt");
@@ -103,12 +104,12 @@ public class AIWriter extends AIWriterBase {
         
         try {
             this.exemplaryArticleTypeJson = getArticleType(exemplaryArticleText, outputStream);
-            this.writingArticleTypeJson = getArticleType(String.format("\n【文章内容】：\n文章标题：%s\n文章类型：%s\n", articleTitle, articleType), outputStream);
+            this.writingArticleTypeJson = getArticleType(String.format("\n文章标题：%s\n文章类型：%s\n", articleTitle, articleType), outputStream);
             
             /* 检查文体类别是否一致 */
             String exemplaryArticleCategory = this.exemplaryArticleTypeJson.getString("category");
             String writingArticleCategory = this.writingArticleTypeJson.getString("category");
-            if (exemplaryArticleCategory.equals(writingArticleCategory)) 
+            if (exemplaryArticleCategory != null && exemplaryArticleCategory.equals(writingArticleCategory)) 
                 return articleTitle;
 
             /* 修改标题 */
@@ -238,14 +239,15 @@ public class AIWriter extends AIWriterBase {
      * @return 写作章节内容
      */
     private String writeChapter(String title, JSONObject writingTemplate, String refrence, String writingCause, int wordsLimit, boolean onlyThinking, OutputStream outputStream) {
-        if (writingTemplate.getString("title").equals("引言")) {
+        String templateTitle = writingTemplate.getString("title");
+        if ("引言".equals(templateTitle)) {
             writingCause = String.format("%s\n%s", "引言要求：开篇点题，背景+论点，一个自然段，≤200字。", writingCause);
             wordsLimit = -1;
         }
 
         String wordsLimitPrompt = "";
         if (wordsLimit > 0) {
-            wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，不能太多，不能太少，按照字数要求写作。\n", wordsLimit);
+            wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，但不能出现冗余的内容，不能破坏内容的完整性。\n", wordsLimit);
         }
 
         JSONArray prompt = buildJsonPrompt(this.writerPrompt, 
@@ -314,7 +316,7 @@ public class AIWriter extends AIWriterBase {
      * @param chatParams 参数配置
      * @param outputStream 输出流
      */
-    public String writerArticle(ChatParams chatParams, OutputStream outputStream) throws RuntimeException {
+    public String writeArticle(ChatParams chatParams, OutputStream outputStream) throws RuntimeException {
         // 输入参数验证
         validateChatParams(chatParams);
         if (outputStream == null) {
@@ -357,15 +359,18 @@ public class AIWriter extends AIWriterBase {
         }
         String writingCause = writingCauseBuffer.toString();
 
-        try {
-            // 获取格式要求和标题
-            String articleTitle = chatParams.getTitle();
-            String articleType = chatParams.getGwwz();
-            if (StringUtils.isBlank(articleType)) {
-                articleType = "";
-            }
-            int articleLength = chatParams.getArticleLength();
 
+        // 获取格式要求和标题
+        String articleTitle = chatParams.getTitle();
+        String articleType = chatParams.getGwwz();
+        if (StringUtils.isBlank(articleType)) {
+            articleType = "";
+        }
+
+        // 文章长度要求
+        int articleLength = chatParams.getArticleLength();
+        
+        try {
             StringBuffer contentBuffer = new StringBuffer();
 
             // 检查范文是否可作为写作模板，如果不能，则修改标题符合范文文体类别
@@ -378,7 +383,6 @@ public class AIWriter extends AIWriterBase {
                     true);
                 articleTitle = title;
             }
-
 
             // 生成标题
             safeWriteToStream(outputStream, String.format("\n%s\n\n", articleTitle), false);
@@ -404,7 +408,11 @@ public class AIWriter extends AIWriterBase {
                     }
 
                     // 创建章节的写作模板
-                    safeWriteToStream(outputStream, String.format("\n【 分析范文章节《%s》 ... 】\n", exemplaryChapterJson.getString("title")), true);
+                    String chapterTitle = exemplaryChapterJson.getString("title");
+                    if (StringUtils.isBlank(chapterTitle)) {
+                        chapterTitle = "段落";
+                    }
+                    safeWriteToStream(outputStream, String.format("\n【 分析范文章节《%s》 ... 】\n", chapterTitle), true);
                     JSONObject writingTemplateJson = buildWriterTemplateByChapter(exemplaryChapterJson, nullOutputStream);
                     if (writingTemplateJson == null) {
                         throw new IllegalArgumentException("范文章节的写作模板为空");
@@ -431,7 +439,8 @@ public class AIWriter extends AIWriterBase {
 
                     // 章节写作
                     safeWriteToStream(outputStream, String.format("\n【依据参考内容】：\n%s\n【章节<<%s>>写作中 ... 】\n", refrence, subtitle), true);
-                    if (!subtitle.matches("^(引言|段落\\s*)$")) {                                   
+                    if (!subtitle.matches("^(引言|段落\\s*)$")) {          
+                        contentBuffer.append(subtitle).append("\n");
                         safeWriteToStream(outputStream, String.format("\n%s\n", subtitle), false);
                     }
 

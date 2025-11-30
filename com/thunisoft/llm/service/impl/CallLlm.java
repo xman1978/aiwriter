@@ -97,6 +97,9 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
     @Value("${chat.llmparams.connectTimeout:30000}")
     private int connectTimeout;
 
+    @Value("${chat.llmparams.MaxTokens:8192}")
+    private int MaxTokens;
+
 
     // xman: 本地测试用
     /*
@@ -172,11 +175,13 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         String answer = "";
         String thinkStep = "";
         long s = System.currentTimeMillis();
-        // 构建参数
-        JSONObject params = buildParams(messages, maxToken, isExchange, useThink);
+        // xman: 如果使用融合模型，则需要在消息中添加/think或/no_think
         if(StringUtils.equals(thinkModelType, "fusionModel") || StringUtils.equals(baseModelType, "fusionModel")){
+            logger.info("【大模型调用】 使用融合模型， useThink : {}", useThink);
             messages.getJSONObject(0).put("content", messages.getJSONObject(0).getString("content") + (useThink? "/think":"/no_think"));
         }
+        // 构建参数
+        JSONObject params = buildParams(messages, maxToken, isExchange, useThink);
         String url = buildUrl(useThink);
         boolean thinking = false;
         boolean isStop = false;
@@ -216,8 +221,8 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         }
         // xman: 如果只是给内部程序使用，则只需要输出思考过程到用户界面，不输出回答到用户界面
         boolean onlyThinking = false;
-        if(extParams.containsKey("only_thinking") && extParams.getBooleanValue("only_thinking")){
-            onlyThinking = true;
+        if(extParams.containsKey("only_thinking")){
+            onlyThinking = extParams.getBooleanValue("only_thinking");
         }
         // 开始调用
         try(CloseableHttpClient httpclient = HttpClients.custom()
@@ -465,6 +470,10 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                                                     }catch (IOException e){
                                                         // xman: 只有输出流写数据失败失败时，关闭输出流，并退出循环
                                                         logger.error("【大模型】调用大模型过程中客户端关闭流，向输出流写数据失败！", e);
+                                                        try {
+                                                            outputStream.flush();
+                                                        } catch (IOException ex) {
+                                                        }
                                                         outputStream.close();
                                                         break;
                                                     }catch (Exception e) {
@@ -675,6 +684,8 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         params.put("stream", this.stream);
         if(maxToken > 0){
             params.put("max_tokens", maxToken);
+        } else {
+            params.put("max_tokens", this.MaxTokens);
         }
         return params;
     }

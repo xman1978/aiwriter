@@ -1,4 +1,4 @@
-package com.thunisoft.llm.templatewriter.utils;
+package com.thunisoft.llm.writeragent.utils;
 
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
 
-import com.thunisoft.llm.templatewriter.AIWriterBase;
+import com.thunisoft.llm.writeragent.AIWriterBase;
 import com.thunisoft.llm.service.ICallLlm;
 import com.thunisoft.llm.service.impl.CallLlm;
 
@@ -33,9 +33,13 @@ public class SpliteText extends AIWriterBase {
     // 常量定义
     private static final int MAX_TEXT_LENGTH = 1000000; // 最大文本长度限制
     private static final String BR_MARKER = "<<BR>>"; // 换行标记
+    private static final String TABLE_MARKER = "<<TABLE>>"; // 表格标记
     private static final String LINE_SEPARATOR = "\n"; // 行分隔符
     private static final Pattern ATTACHMENT_PATTERN = Pattern.compile("^附[件]?[:：]?$");
 
+    static {
+        PromptConfig.setPromptFileName("template.yml");
+    }
     private static final String EXTRACT_CHUNK_OUTLINE_PROMPT = PromptConfig.getPrompt("extractChunkOutlinePrompt");
     private static final String EXTRACT_FIRST_LEVEL_TITLE_PROMPT = PromptConfig.getPrompt("extractFirstLevelTitlePrompt");
 
@@ -53,7 +57,7 @@ public class SpliteText extends AIWriterBase {
     private static final Pattern TAILING_WHITE_SPACE_PATTERN = Pattern.compile("[\\s\\u3000]+$");
 
     private static final Pattern PUNCTUATION_NEWLINE_PATTERN = Pattern.compile("([。！？!?])[\\s\\u3000]*\\r?\\n");
-
+    
     // 线程局部的StringBuilder，减少内存分配
     private static final ThreadLocal<StringBuilder> STRING_BUILDER_HOLDER = 
         ThreadLocal.withInitial(() -> new StringBuilder(4096));
@@ -178,13 +182,59 @@ public class SpliteText extends AIWriterBase {
             sb.ensureCapacity(text.length()); // 预分配足够容量
 
             for (String line : lines) {
-                if (line == null) continue;
+                if (StringUtils.isBlank(line)) continue;
         
                 String cleanedLine = HEADING_WHITE_SPACE_PATTERN.matcher(line).replaceAll("");
                 
                 if (StringUtils.isNotBlank(cleanedLine) && !HEADING_PATTERN.matcher(cleanedLine).matches()) {
                     sb.append(line).append(LINE_SEPARATOR);
                 }
+            }
+            String result = sb.toString().trim();
+            return result.isEmpty() ? "" : result;
+        } catch (Exception e) {
+            logger.error("去除一级、二级、三级标题时发生异常", e);
+            return text; // 发生异常时返回原文本
+        }
+    }
+
+    /**
+     * 处理文本中的表格，用<<TABLE_MARKER>>标记表格换行
+     * @param text 输入文本，不能为null
+     * @param tailer 尾标签，不能为null
+     * @return 处理后的文本
+     */
+    private String processTable(String text) {
+        if (StringUtils.isBlank(text)) {
+            return "";
+        }
+        
+        try {
+            StringBuilder sb = STRING_BUILDER_HOLDER.get();
+            sb.setLength(0); // 重用StringBuilder
+            String[] lines = LINE_SEPARATOR_PATTERN.split(text);
+            sb.ensureCapacity(text.length()); // 预分配足够容量
+
+            boolean inTable = false;
+            for (String line : lines) {
+                if (StringUtils.isBlank(line)) continue;
+        
+                String cleanedLine = HEADING_WHITE_SPACE_PATTERN.matcher(line).replaceAll("");
+                cleanedLine = TAILING_WHITE_SPACE_PATTERN.matcher(cleanedLine).replaceAll("");
+                if (cleanedLine.equals("<table>")) {
+                    inTable = true;
+                    sb.append(cleanedLine).append(TABLE_MARKER);
+                    continue;
+                }
+                if (cleanedLine.equals("</table>")) {
+                    inTable = false;
+                    sb.append(cleanedLine).append(BR_MARKER).append(LINE_SEPARATOR);
+                    continue;
+                }
+                if (! inTable) 
+                    sb.append(line).append(LINE_SEPARATOR);
+                else
+                    sb.append(line).append(TABLE_MARKER);
             }
             String result = sb.toString().trim();
             return result.isEmpty() ? "" : result;
@@ -267,7 +317,10 @@ public class SpliteText extends AIWriterBase {
                 result = removeHeading(result, removeHeading);
             }
             
-            return removeNewlineAndSpace(result);
+            result = processTable(result);
+            result = removeNewlineAndSpace(result);
+            
+            return result.replaceAll(TABLE_MARKER, LINE_SEPARATOR);
         } catch (Exception e) {
             logger.error("清洗文本时发生异常", e);
             return text; // 发生异常时返回原文本
@@ -559,11 +612,11 @@ public class SpliteText extends AIWriterBase {
         return resultArray;
     }
 
-    // 本地测试用
     /*
+     * 本地测试用
     public static void main(String[] args) {
         try {
-            Path path = Paths.get("C:\\Users\\xman\\Desktop\\test2.txt");
+            Path path = Paths.get("C:\\Users\\xman\\Desktop\\1.txt");
             String text = Files.readAllLines(path, Charset.forName("UTF-8")).stream().collect(Collectors.joining("\n"));
 
             System.out.println("text length: " + text.length());
@@ -581,5 +634,5 @@ public class SpliteText extends AIWriterBase {
         }
         
     }
-        */
+    */
 }

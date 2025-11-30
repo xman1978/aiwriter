@@ -1,4 +1,4 @@
-package com.thunisoft.llm.templatewriter;
+package com.thunisoft.llm.writeragent;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -7,9 +7,9 @@ import java.io.OutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import com.thunisoft.llm.templatewriter.utils.PromptConfig;
+import com.thunisoft.llm.writeragent.utils.PromptConfig;
 import com.thunisoft.llm.service.ICallLlm;
-import com.thunisoft.llm.templatewriter.utils.FixJson;
+import com.thunisoft.llm.writeragent.utils.FixJson;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,10 +52,12 @@ public class AIWriterBase {
             throw new IllegalArgumentException("ICallLlm不能为空");
         }
         
-        this.MAX_REFERENCE_LENGTH = Integer.parseInt(PromptConfig.getPromptOrDefault("maxReferenceLength", "4096"));
+        PromptConfig.setPromptFileName("config.yml");
         this.THINKING_BUDGET = Integer.parseInt(PromptConfig.getPromptOrDefault("thinkBudget", "256"));
         this.DEFAULT_MAX_TOKEN = Integer.parseInt(PromptConfig.getPromptOrDefault("maxToken", "8192"));
         this.THINKING_ENABLE = Boolean.parseBoolean(PromptConfig.getPromptOrDefault("thinkEnable", "true"));
+
+        this.MAX_REFERENCE_LENGTH = (int) (this.DEFAULT_MAX_TOKEN / 2);
         
         this.callLlm = callLlm;
         this.useThink = useThink;

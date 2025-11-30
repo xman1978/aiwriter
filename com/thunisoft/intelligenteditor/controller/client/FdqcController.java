@@ -97,12 +97,14 @@ import com.thunisoft.llm.service.RagSearchService;
 import com.thunisoft.llm.service.impl.GwwzService;
 import com.thunisoft.llm.service.impl.promptImpl.CommonPromptService;
 import com.thunisoft.llm.service.impl.promptImpl.QcPromptService;
-import com.thunisoft.llm.templatewriter.AIWriter;
 import com.thunisoft.llm.util.HistoryUtil;
 import com.thunisoft.llm.util.TextUtil;
 import com.thunisoft.mcp.serveice.domain.EvallmResult;
 import com.thunisoft.mcp.serveice.service.EvaService;
 import com.thunisoft.tas.core.util.StringUtil;
+
+import com.thunisoft.llm.writeragent.TemplateWriter;
+import com.thunisoft.llm.writeragent.CollaborationWriter;
 
 import static com.thunisoft.intelligenteditor.consts.UserDataConst.DATATYPE_ROLENAME;
 import static com.thunisoft.intelligenteditor.consts.UserDataConst.SELECTDWXX;
@@ -453,11 +455,19 @@ public class FdqcController extends AIBaseController {
         try(OutputStream output = response.getOutputStream()){
             StringBuilder answer_content = new StringBuilder();
             StringBuilder prompt_content = new StringBuilder();
-            // xman: 仿写优化(参考范文全文写作，需要提供范文，不包括大纲)
-            if (chatParams.getType().contains(ConstV2.QW) && StringUtils.isBlank(chatParams.getOutline()) && StringUtils.isNotBlank(chatParams.getImitative()) )  {
+            if (chatParams.getType().contains(ConstV2.QW) && (StringUtils.isBlank(chatParams.getGwwz()) 
+                     || StringUtils.equals(chatParams.getGwwz(), "方案") || StringUtils.equals(chatParams.getGwwz(), "工作总结")) 
+                     && chatParams.getReferences() != null && chatParams.getReferences().size() > 0)  {
+                // xman:协作写作(参考范文全文写作，需要提供参考内容，类型为方案或工作总结，或不提供类型)
                 output.flush();
-                AIWriter aiWriter = new AIWriter(callLlm, chatParams.isUseThink(), -1, chatParams.isExchange());
-                answer_content.append(aiWriter.writerArticle(chatParams, output));
+                CollaborationWriter collaborationWriter = new CollaborationWriter(callLlm, chatParams.isUseThink(), -1, chatParams.isExchange());
+                answer_content.append(collaborationWriter.writeArticle(chatParams, output));
+                prompt_content.append("[{\"role\": \"system\", \"content\": \"协作\"},{\"role\": \"user\", \"content\": \"示例\"}]");
+            } else if (chatParams.getType().contains(ConstV2.QW) && StringUtils.isBlank(chatParams.getOutline()) && StringUtils.isNotBlank(chatParams.getImitative()) )  {
+                // xman: 仿写优化(参考范文全文写作，需要提供范文，不包括大纲)
+                output.flush();
+                TemplateWriter templateWriter = new TemplateWriter(callLlm, chatParams.isUseThink(), -1, chatParams.isExchange());
+                answer_content.append(templateWriter.writeArticle(chatParams, output));
                 prompt_content.append("[{\"role\": \"system\", \"content\": \"仿写\"},{\"role\": \"user\", \"content\": \"示例\"}]");
             } else {
                 JSONObject inputParamsBlock = promptService.buildPrompt(chatParams, continueWriteTime, continueWriteTempText, output);
