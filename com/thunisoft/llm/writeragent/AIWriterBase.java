@@ -128,13 +128,14 @@ public class AIWriterBase {
      * @param jsonObject 是否返回JSON对象
      * @return 大模型返回的结果
      */
-    protected String invokeLlm(JSONArray prompt, OutputStream outputStream, boolean onlyThinking, boolean jsonObject) throws RuntimeException {
+    protected String invokeLlm(JSONArray prompt, OutputStream outputStream, boolean onlyThinking, boolean jsonObject) 
+        throws RuntimeException {
         if (jsonObject) {
             this.extParams.put("response_format", "json_object");
         }
         this.extParams.put("only_thinking", onlyThinking);
         String result = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt, this.extParams, outputStream);
-        if (StringUtils.isBlank(result)) {
+        if (StringUtils.isBlank(result) || result.contains("努力思考中！请稍后提问...")) {
             throw new RuntimeException("大模型返回的结果为空");
         }
         /*

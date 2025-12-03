@@ -57,6 +57,9 @@ public class SpliteText extends AIWriterBase {
     private static final Pattern TAILING_WHITE_SPACE_PATTERN = Pattern.compile("[\\s\\u3000]+$");
 
     private static final Pattern PUNCTUATION_NEWLINE_PATTERN = Pattern.compile("([。！？!?])[\\s\\u3000]*\\r?\\n");
+
+    // 控制字符匹配模式
+    private static final Pattern CONTROL_CHARACTER_PATTERN = Pattern.compile("[\\u0000-\\u0008\\u000B-\\u000C\\u000E-\\u001F\\u007F\\u00A0\\u200B\\u200C\\u200D\\u200E\\u200F\\u2028\\u2029\\u2060\\uFEFF]");
     
     // 线程局部的StringBuilder，减少内存分配
     private static final ThreadLocal<StringBuilder> STRING_BUILDER_HOLDER = 
@@ -260,6 +263,9 @@ public class SpliteText extends AIWriterBase {
             sb.setLength(0); // 重用StringBuilder
             sb.ensureCapacity(text.length()); // 预分配容量
             
+            // 去除控制字符，避免干扰文本分块
+            text = CONTROL_CHARACTER_PATTERN.matcher(text).replaceAll("");
+
             // 使用Matcher进行逐字符处理，避免创建中间字符串
             String processedText = PUNCTUATION_NEWLINE_PATTERN.matcher(text).replaceAll("$1" + BR_MARKER);
             
@@ -313,6 +319,7 @@ public class SpliteText extends AIWriterBase {
             if (removeTitle) {
                 result = removeTitle(result, removeTitle);
             }
+
             if (removeHeading) {
                 result = removeHeading(result, removeHeading);
             }
@@ -612,14 +619,12 @@ public class SpliteText extends AIWriterBase {
         return resultArray;
     }
 
+    // 本地测试用
     /*
-     * 本地测试用
     public static void main(String[] args) {
         try {
             Path path = Paths.get("C:\\Users\\xman\\Desktop\\1.txt");
             String text = Files.readAllLines(path, Charset.forName("UTF-8")).stream().collect(Collectors.joining("\n"));
-
-            System.out.println("text length: " + text.length());
 
             SpliteText spliteText = new SpliteText(text, true, true, false, new CallLlm(), true, 4096, false);
             if (spliteText.checkIsHeading()) {

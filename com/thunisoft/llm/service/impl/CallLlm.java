@@ -102,14 +102,13 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
 
 
     // xman: 本地测试用
-    /*
     private void initParams(){
         this.debug = false;
         this.modeName = "qwen3:30b-instruct";
         // this.thinkModeName = "deepseek-v3.1";
-        this.thinkModeName = "qwen3-30b-a3b-thinking-2507";
+        this.thinkModeName = "Qwen3-Next-80B-Instruct";
         this.token = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
-        this.thinkToken = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
+        this.thinkToken = "8d6dd05d-8081-4176-86f0-28ddac18d165";
         this.temperature = 0;
         this.top_k = -1;
         this.top_p = 0.9;
@@ -120,13 +119,13 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.contianThinkLable = false;
         this.forceThink = false;
         this.url = "http://192.168.0.158:11434/v1/chat/completions";
-        this.thinkUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
+        this.thinkUrl = "https://llm.thunisoft.com/v1/chat/completions";
         this.replaceEnable = false;
         this.thinkModelType = "common";
         this.baseModelType = "common";
     }
-    */
     
+    /*
     private void initParams(){
         chatLlmParams.initParams();
         this.debug = chatLlmParams.getDebug();
@@ -149,6 +148,7 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.thinkModelType = chatLlmParams.getThinkModelType();
         this.baseModelType = chatLlmParams.getBaseModelType();
     }
+    */
 
     @Autowired
     private ReplaceWordService replaceWordService;
@@ -700,8 +700,8 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                 newMsg.put("role", msg.getString("role"));
                 try {
                     // xman: 本地测试用
-                    // int halfMaxInput = 8192 * 2;
-                    int halfMaxInput = (int) (chatLlmParams.getMaxInput() / 2);
+                    int halfMaxInput = 8192 * 2;
+                    // int halfMaxInput = (int) (chatLlmParams.getMaxInput() / 2);
                     if (content.length() > halfMaxInput) {
                         logger.info("【大模型】获取最大输入长度：{}， 文字长度{}", halfMaxInput * 2, content.length());
                         content = content.substring(0, halfMaxInput);

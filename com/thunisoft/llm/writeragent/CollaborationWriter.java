@@ -20,8 +20,7 @@ import java.io.File;
 import java.util.Arrays;
 
 /**
- * 协作写作
- * 根据范文和参考内容，生成文章
+ * 协作写作，基于参考内容，生成文章
  * 1. 检查范文是否可作为写作模板
  * 2. 修改标题符合范文文体类别
  * 3. 创建单个章节的写作模板
@@ -32,14 +31,16 @@ import java.util.Arrays;
 public class CollaborationWriter extends AIWriterBase {
     private static final Logger logger = LoggerFactory.getLogger(CollaborationWriter.class);
 
+    private final String articleCategory;
+    private final String outlineTemplatePrompt;
     private final String articleTypePrompt;
     private final String modifyTitlePrompt;
     private final String chapterTemplatePrompt;
-    private final String refrenceBreakdownPrompt;
     private final String referenceFilterPrompt;
+    private final String refrenceBreakdownPrompt;
+    private final String referenceFinalizedPrompt;
+    private final String chapterStructurePlanPrompt;
     private final String chapterWritingPrompt;
-    private final String articleCategory;
-    private final String outlineTemplatePrompt;
 
     private JSONObject exemplaryArticleTypeJson;
     private JSONObject writingArticleTypeJson;
@@ -51,20 +52,21 @@ public class CollaborationWriter extends AIWriterBase {
      * @param useThink   是否使用思考模式
      * @param maxToken   最大token数，必须大于0
      * @param isExchange 是否交换模式
-     * @throws IllegalArgumentException 如果参数无效
      */
     public CollaborationWriter(ICallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
         super(callLlm, useThink, maxToken, isExchange);
 
         PromptConfig.setPromptFileName("collaboration.yml");
+        this.chapterWritingPrompt = PromptConfig.getPrompt("chapterWritingPrompt");
+        this.outlineTemplatePrompt = PromptConfig.getPrompt("outlineTemplatePrompt");
         this.articleTypePrompt = PromptConfig.getPrompt("articleTypePrompt");
         this.modifyTitlePrompt = PromptConfig.getPrompt("modifyTitlePrompt");
         this.articleCategory = PromptConfig.getPrompt("articleCategory");
         this.chapterTemplatePrompt = PromptConfig.getPrompt("chapterTemplatePrompt");
-        this.refrenceBreakdownPrompt = PromptConfig.getPrompt("refrenceBreakdownPrompt");
         this.referenceFilterPrompt = PromptConfig.getPrompt("referenceFilterPrompt");
-        this.chapterWritingPrompt = PromptConfig.getPrompt("chapterWritingPrompt");
-        this.outlineTemplatePrompt = PromptConfig.getPrompt("outlineTemplatePrompt");
+        this.refrenceBreakdownPrompt = PromptConfig.getPrompt("refrenceBreakdownPrompt");
+        this.referenceFinalizedPrompt = PromptConfig.getPrompt("referenceFinalizedPrompt");
+        this.chapterStructurePlanPrompt = PromptConfig.getPrompt("chapterStructurePlanPrompt");
     }
 
     /**
@@ -205,50 +207,94 @@ public class CollaborationWriter extends AIWriterBase {
     }
 
     /**
+     * 筛选参考内容
+     * 
+     * @param articleTitle 文章标题
+     * @param writingTemplate 写作模板
+     * @param fragmentCollection 最小主题语义片段
+     * @param outputStream 输出流
+     * @return 筛选后的参考内容字符串
+     * @throws RuntimeException
+     */
+    private String filterReferenceContent(JSONObject writingTemplate, String referenceContent,
+            OutputStream outputStream) throws RuntimeException {
+        try {
+            JSONArray prompt = buildJsonPrompt(this.referenceFilterPrompt,
+                    String.format("\n【章节标题】：\n%s\n", writingTemplate.getString("title")),
+                    String.format("\n【章节主题】：\n%s\n", writingTemplate.getString("subject")),
+                    String.format("\n【参考内容】：\n%s\n", referenceContent));
+
+            String result = invokeLlm(prompt, outputStream, true, false);
+
+            // logger.info("：：：：：：：：原始参考内容：{}", referenceContent);
+            logger.debug("：：：：：：：：筛选后的参考内容：{}", result);
+
+            return result;
+        } catch (Exception e) {
+            if (e.getMessage().contains("大模型返回的结果为空")) {
+                return "";
+            }
+            throw new RuntimeException("筛选参考内容失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 拆分参考内容 为主题语义片段
      * 
      * @param referenceContent 参考内容
      * @param outputStream     输出流
      * @return 最小主题语义片段
      */
-    private JSONArray breakdownReference(JSONObject writingTemplate, JSONArray fragmentCollection, OutputStream outputStream) 
-        throws RuntimeException {
+    private JSONArray breakdownReference(JSONObject writingTemplate, JSONArray fragmentCollection, OutputStream outputStream) {
         try {
             StringBuffer fragmentText = new StringBuffer();
             for (int i = 0; i < fragmentCollection.size(); i++) {
                 JSONObject fragmentCollectionJson = fragmentCollection.getJSONObject(i);
                 if (fragmentCollectionJson.containsKey("text")) {
-                    fragmentText.append(fragmentCollectionJson.getString("text")).append("\n");
+                    fragmentText.append(fragmentCollectionJson.getString("text"));
                 }
             }
 
+            // logger.info("参考内容: {}", fragmentText.toString());
+
+            String filteredReferenceContent = filterReferenceContent(writingTemplate, fragmentText.toString(), outputStream);
+            if (StringUtils.isBlank(filteredReferenceContent)) {
+                return new JSONArray();
+            }
+
+            // logger.info("过滤参考内容成功: {}", filteredReferenceContent);
+
             JSONArray prompt = buildJsonPrompt(this.refrenceBreakdownPrompt,
-                    String.format("\n【写作框架】：\n%s\n", writingTemplate.toJSONString()),
-                    String.format("\n【参考内容】：\n%s\n", fragmentText.toString()));
+                    String.format("\n【章节框架】：\n%s\n", writingTemplate.toJSONString()),
+                    String.format("\n【参考内容】：\n%s\n", filteredReferenceContent));
             String result = invokeLlm(prompt, outputStream, true, true);
-            
+
+            // logger.info("拆分参考内容成功: {}", result);
+
             return JSON.parseArray(result);
         } catch (Exception e) {
-            throw new RuntimeException("拆分参考内容失败: " + e.getMessage(), e);
+            logger.error("拆分参考内容失败: {}", e.getMessage(), e);
         }
+
+        return new JSONArray();
     }
 
     /**
-     * 分析参考内容，每块不超过MAX_REFERENCE_LENGTH * 0.8
+     * 合并参考内容的最小语义块，每块不超过MAX_REFERENCE_LENGTH * 0.8
      * 
      * @param refrenceContent 参考内容
      * @param writingTemplate 写作模板
      * @param outputStream    输出流
      * @return 合并后的参考内容
      */
-    private JSONArray analyzeReference(String refrenceContent, JSONObject writingTemplate, OutputStream outputStream) 
-        throws RuntimeException {
-        if (StringUtils.isBlank(refrenceContent)) 
+    private JSONArray mergeReference(String refrenceContent, JSONObject writingTemplate, OutputStream outputStream)
+            throws RuntimeException {
+        if (StringUtils.isBlank(refrenceContent))
             throw new IllegalArgumentException("参考内容不能为空");
 
         try {
             SpliteText spliteText = new SpliteText(refrenceContent, false, true, false,
-                this.callLlm, this.useThink, this.maxToken, this.isExchange);
+                    this.callLlm, this.useThink, this.maxToken, this.isExchange);
 
             // 参考内容分块，每块不超过MAX_REFERENCE_LENGTH
             JSONArray refrenceContentArray = new JSONArray();
@@ -259,6 +305,8 @@ public class CollaborationWriter extends AIWriterBase {
                 }
             }
 
+            // logger.info("参考内容分块成功: {}", refrenceContentArray.toJSONString());
+
             // 参考内容拆分为最小主题语义片段
             JSONArray referenceCollection = new JSONArray();
             for (int i = 0; i < refrenceContentArray.size(); i++) {
@@ -266,6 +314,10 @@ public class CollaborationWriter extends AIWriterBase {
                 if (fragmentArray != null && !fragmentArray.isEmpty()) {
                     referenceCollection.addAll(breakdownReference(writingTemplate, fragmentArray, outputStream));
                 }
+            }
+
+            if (referenceCollection.isEmpty()) {
+                return new JSONArray();
             }
 
             // logger.info("拆分参考内容成功: {}", referenceCollection.toJSONString());
@@ -300,64 +352,102 @@ public class CollaborationWriter extends AIWriterBase {
     }
 
     /**
-     * 筛选参考内容
+     * 参考内容去重和冲突处理
      * 
      * @param fragmentCollection 最小主题语义片段
      * @param writingTemplate    写作模板s
      * @param outputStream       输出流
-     * @return 筛选后的参考内容
+     * @return 去重和冲突处理后的参考内容
      */
-    private JSONArray filterReferenceContent(String articleTitle, JSONArray fragmentCollection,
+    private JSONArray finalizeReference(String articleTitle, JSONArray fragmentCollection,
             JSONObject writingTemplate, OutputStream outputStream) throws RuntimeException {
         if (fragmentCollection == null || fragmentCollection.isEmpty()) {
-            throw new IllegalArgumentException("最小主题语义片段不能为空");
+            return new JSONArray();
         }
 
         try {
-            JSONArray prompt = buildJsonPrompt(this.referenceFilterPrompt,
+            JSONArray prompt = buildJsonPrompt(this.referenceFinalizedPrompt,
                     String.format("\n【文章标题】：\n%s\n", articleTitle),
                     String.format("\n【章节框架】：\n%s\n", writingTemplate),
                     String.format("\n【最小主题语义片段】：\n%s\n", fragmentCollection));
+
             String result = invokeLlm(prompt, outputStream, true, true);
 
             return JSON.parseArray(result);
         } catch (Exception e) {
-            throw new RuntimeException("筛选参考内容失败: " + e.getMessage(), e);
+            if (e.getMessage().contains("大模型返回的结果为空")) {
+                return new JSONArray();
+            }
+            throw new RuntimeException("参考内容去重和冲突处理失败: " + e.getMessage(), e);
         }
     }
 
     /**
-     * 写作章节
+     * 规划章节结构
      * 
-     * @param title           文章标题
-     * @param writingTemplate 写作模板
-     * @param refrence        参考内容
-     * @param writingCause    内容要求
-     * @param wordsLimit      字数限制
-     * @param outputStream    输出流
+     * @param articleTitle        文章标题
+     * @param writingTemplate     写作模板
+     * @param referenceCollection 参考内容
+     * @param writingCause        内容要求
+     * @param outputStream        输出流
+     * @return 规划后的章节的单元结构，JSON字符串
+     */
+    private String planChapterStructure(String articleTitle, JSONObject writingTemplate, JSONArray referenceCollection,
+            String writingCause, OutputStream outputStream) throws RuntimeException {
+        if (referenceCollection == null || referenceCollection.isEmpty()) {
+            return "";
+        }
+
+        try {
+            JSONArray prompt = buildJsonPrompt(this.chapterStructurePlanPrompt,
+                    String.format("\n【文章标题】：\n%s\n", articleTitle),
+                    String.format("\n【章节框架】：\n%s\n", writingTemplate),
+                    String.format("\n【参考内容】：\n%s\n", referenceCollection),
+                    String.format("\n【内容要求】：\n%s\n", writingCause));
+
+            String result = invokeLlm(prompt, outputStream, true, false);
+
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("规划章节结构失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 章节写作
+     * 
+     * @param title            文章标题
+     * @param writingTemplate  写作模板
+     * @param chapterStructure 章节结构
+     * @param refrence         参考内容
+     * @param writingCause     内容要求
+     * @param wordsLimit       字数限制
+     * @param outputStream     输出流
      * @return 写作章节内容
      */
-    private String writeChapter(String title, JSONObject writingTemplate, JSONArray referenceCollection,
-            String writingCause, int wordsLimit, boolean onlyThinking, OutputStream outputStream) {
+    private String writeChapter(String title, JSONObject writingTemplate, String chapterStructure,
+            JSONArray referenceCollection,
+            String writingCause, int wordsLimit, OutputStream outputStream) {
         String templateTitle = writingTemplate.getString("title");
         if ("引言".equals(templateTitle)) {
-            writingCause = String.format("%s\n%s", "引言要求：开篇点题，背景+论点，一个自然段，≤200字。", writingCause);
+            writingCause = String.format("%s\n%s", "引言要求：开篇点题，背景+论点，一个自然段，无二级和三级标题，≤250字。\n", writingCause);
             wordsLimit = -1;
         }
 
         String wordsLimitPrompt = "";
         if (wordsLimit > 0) {
-            wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，但不能出现冗余的内容，也不能破坏内容的完整性。\n", wordsLimit);
+            wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，但不能因为长度要求而出现冗余的内容，也不能破坏内容的完整性。\n", wordsLimit);
         }
 
         JSONArray prompt = buildJsonPrompt(this.chapterWritingPrompt,
                 String.format("\n【文章标题】：\n%s\n", title),
                 String.format("\n【章节框架】：\n%s\n", writingTemplate),
-                String.format("\n【参考内容】：\n%s\n", referenceCollection),
+                String.format("\n【章节结构】：\n%s\n", chapterStructure),
+                String.format("\n【参考内容】：\n%s\n", referenceCollection.isEmpty() ? "" : referenceCollection.toJSONString()),
                 String.format("\n【内容要求】：\n%s\n", writingCause),
                 wordsLimitPrompt);
 
-        String content = invokeLlm(prompt, outputStream, onlyThinking, false);
+        String content = invokeLlm(prompt, outputStream, false, false);
 
         return content;
     }
@@ -372,7 +462,7 @@ public class CollaborationWriter extends AIWriterBase {
         if (number < 1 || number > 99) {
             throw new IllegalArgumentException("数字必须在1-99之间");
         }
-        String[] digit = {"零","一","二","三","四","五","六","七","八","九"};
+        String[] digit = { "零", "一", "二", "三", "四", "五", "六", "七", "八", "九" };
         if (number < 10) {
             return digit[number];
         }
@@ -464,8 +554,7 @@ public class CollaborationWriter extends AIWriterBase {
                     if (chapterTitle == null) {
                         chapterTitle = "段落";
                     }
-                    safeWriteToStream(outputStream,
-                            String.format("\n【 分析范文章节《%s》 ... 】\n", chapterTitle), true);
+                    safeWriteToStream(outputStream, String.format("\n【 分析范文章节《%s》 ... 】\n", chapterTitle), true);
                     JSONObject writingTemplateJson = buildWriterTemplateByChapter(exemplaryChapterJson, nullOutputStream);
 
                     String subtitle = writingTemplateJson.getString("title");
@@ -476,21 +565,33 @@ public class CollaborationWriter extends AIWriterBase {
                         isPreface = true;
                     }
 
-                    logger.debug("范文章节的写作模板: {}", writingTemplateJson.toJSONString());
+                    logger.info("根据范文生成章节《{}》模板: {}", subtitle, writingTemplateJson.toJSONString());
 
-                    // 分析参考内容
+                    // 拆分参考内容为最小语义块
                     safeWriteToStream(outputStream, String.format("\n【 分析范文章节《%s》的参考内容 ... 】\n", subtitle), true);
-                    JSONArray referenceCollection = analyzeReference(refrenceContent, writingTemplateJson, outputStream);
+                    JSONArray referenceCollection = mergeReference(refrenceContent, writingTemplateJson, nullOutputStream);
 
-                    // 筛选参考内容
-                    safeWriteToStream(outputStream, String.format("\n【 筛选章节《%s》的参考内容 ... 】\n", subtitle), true);
+                    String chapterStructure = "";
                     JSONArray filteredReferenceCollection = new JSONArray();
-                    for (int j = 0; j < referenceCollection.size(); j++) {
-                        filteredReferenceCollection.addAll(filterReferenceContent(articleTitle,
-                                referenceCollection.getJSONArray(j), writingTemplateJson, outputStream));
+                    if (referenceCollection != null && ! referenceCollection.isEmpty()) {
+                        // 筛选参考内容
+                        safeWriteToStream(outputStream, String.format("\n【 筛选章节《%s》的参考内容 ... 】\n", subtitle), true);
+                        for (int j = 0; j < referenceCollection.size(); j++) {
+                            filteredReferenceCollection.addAll(finalizeReference(articleTitle,
+                                    referenceCollection.getJSONArray(j), writingTemplateJson, nullOutputStream));
+                        }
+
+                        logger.debug("筛选章节《{}》的参考内容：{}", subtitle, filteredReferenceCollection.toJSONString());
+
+                        // 规划章节结构
+                        safeWriteToStream(outputStream, String.format("\n【 规划章节《%s》的结构 ... 】\n", subtitle), true);
+                        chapterStructure = planChapterStructure(articleTitle, writingTemplateJson,
+                                filteredReferenceCollection, writingCause, nullOutputStream);
+
+                        logger.debug("章节结构：{}", chapterStructure);
                     }
 
-                    logger.debug("筛选章节《{}》的参考内容：{}", subtitle, filteredReferenceCollection.toJSONString());
+                    logger.info("处理参考内容");
 
                     // 章节写作
                     safeWriteToStream(outputStream, String.format("\n【依据参考内容】：\n%s\n【章节<<%s>>写作中 ... 】\n",
@@ -503,9 +604,12 @@ public class CollaborationWriter extends AIWriterBase {
                         safeWriteToStream(outputStream, String.format("\n%s\n", subtitle), false);
                     }
 
-                    String chapterContent = writeChapter(articleTitle, writingTemplateJson, filteredReferenceCollection,
-                            writingCause, articleLength, false, outputStream);
+                    String chapterContent = writeChapter(articleTitle, writingTemplateJson, chapterStructure,
+                            filteredReferenceCollection,
+                            writingCause, articleLength, outputStream);
                     contentBuffer.append(chapterContent).append("\n");
+
+                    logger.info("生成第{}个章节《{}》成功", i, subtitle);
                 } catch (Exception e) {
                     logger.error("生成第{}个章节失败，跳过该章节", i, e);
                     continue;
@@ -544,14 +648,15 @@ public class CollaborationWriter extends AIWriterBase {
             safeWriteToStream(outputStream, "\n【 生成文章大纲和章节框架 ... 】\n", true);
             JSONArray outlineCollection = buildArticleOutline(articleTitle, articleType, writingCause, outline,
                     outputStream);
-            
+
             if (outlineCollection == null || outlineCollection.isEmpty()) {
                 throw new RuntimeException("生成文章大纲和章节框架失败，返回结果为空");
             }
 
-            logger.debug("文章大纲和章节框架：{}", outlineCollection.toJSONString());
+            logger.info("根据文章标题和大纲，生成章节框架：{}", outlineCollection.toJSONString());
 
             // 生成章节
+            boolean isPreface = false;
             for (int i = 0; i < outlineCollection.size(); i++) {
                 try {
                     JSONObject chapterTemplateJson = outlineCollection.getJSONObject(i);
@@ -560,32 +665,52 @@ public class CollaborationWriter extends AIWriterBase {
                     if (StringUtils.isBlank(subtitle)) {
                         throw new IllegalArgumentException("文章大纲和章节框架title为空");
                     }
-
-                    // 分析参考内容
-                    safeWriteToStream(outputStream, String.format("\n【 分析章节《%s》的参考内容 ... 】\n", subtitle), true);
-                    JSONArray referenceCollection = analyzeReference(refrenceContent, chapterTemplateJson, outputStream);
-
-                    // 筛选参考内容
-                    safeWriteToStream(outputStream, String.format("\n【 筛选章节《%s》的参考内容 ... 】\n", subtitle), true);
-                    JSONArray filteredReferenceCollection = new JSONArray();
-                    for (int j = 0; j < referenceCollection.size(); j++) {
-                        filteredReferenceCollection.addAll(filterReferenceContent(articleTitle,
-                                referenceCollection.getJSONArray(j), chapterTemplateJson, outputStream));
+                    if (subtitle.matches("^引言$")) {
+                        isPreface = true;
                     }
 
-                    logger.debug("筛选章节《{}》的参考内容：{}", subtitle, filteredReferenceCollection.toJSONString());
+                    // 拆分参考内容为最小语义块
+                    safeWriteToStream(outputStream, String.format("\n【 分析章节《%s》的参考内容 ... 】\n", subtitle), true);
+                    JSONArray referenceCollection = mergeReference(refrenceContent, chapterTemplateJson, nullOutputStream);
+
+                    String chapterStructure = "";
+                    JSONArray filteredReferenceCollection = new JSONArray();
+                    if (referenceCollection != null && ! referenceCollection.isEmpty()) {
+                        // 参考内容去重和冲突处理
+                        safeWriteToStream(outputStream, String.format("\n【 筛选章节《%s》的参考内容 ... 】\n", subtitle), true);
+                        for (int j = 0; j < referenceCollection.size(); j++) {
+                            filteredReferenceCollection.addAll(finalizeReference(articleTitle,
+                                    referenceCollection.getJSONArray(j), chapterTemplateJson, nullOutputStream));
+                        }
+
+                        logger.debug("筛选章节《{}》的参考内容：{}", subtitle, filteredReferenceCollection.toJSONString());
+
+                        // 规划章节结构
+                        safeWriteToStream(outputStream, String.format("\n【 规划章节《%s》的结构 ... 】\n", subtitle), true);
+                        chapterStructure = planChapterStructure(articleTitle, chapterTemplateJson,
+                                filteredReferenceCollection, writingCause, nullOutputStream);
+
+                        logger.debug("章节结构：{}", chapterStructure);
+                    }
+
+                    logger.info("处理参考内容");
 
                     // 章节写作
                     safeWriteToStream(outputStream, String.format("\n【 生成章节《%s》 ... 】\n", subtitle), true);
                     if (!subtitle.matches("^(引言|段落\\s*)$")) {
-                        subtitle = numberToChinese(i + 1) + "、" + subtitle;
+                        if (!subtitle.matches("^[第]?[一二三四五六七八九十零〇]+[\\.\\s、章篇部分节]{1}.*$")) {
+                            subtitle = (isPreface ? numberToChinese(i) : numberToChinese(i + 1)) + "、" + subtitle;
+                        }
                         contentBuffer.append(subtitle).append("\n");
                         safeWriteToStream(outputStream, String.format("\n%s\n", subtitle), false);
                     }
 
-                    String chapterContent = writeChapter(articleTitle, chapterTemplateJson, filteredReferenceCollection,
-                            writingCause, articleLength, false, outputStream);
+                    String chapterContent = writeChapter(articleTitle, chapterTemplateJson, chapterStructure,
+                            filteredReferenceCollection,
+                            writingCause, articleLength, outputStream);
                     contentBuffer.append(chapterContent).append("\n");
+
+                    logger.info("生成第{}个章节《{}》成功", i, subtitle);
                 } catch (Exception e) {
                     logger.error("生成第{}个章节失败，跳过该章节", i, e);
                     continue;
@@ -614,16 +739,16 @@ public class CollaborationWriter extends AIWriterBase {
         String exemplaryArticle = chatParams.getImitative();
 
         // 拼接参考内容
-        String refrenceContent = "";
+        StringBuffer refrenceContent = new StringBuffer();
         if (chatParams.getReferences() != null) {
             for (String reference : chatParams.getReferences()) {
                 if (StringUtils.isNotBlank(reference)) {
-                    refrenceContent += reference.trim() + "\n";
+                    refrenceContent.append(reference.trim()).append("\n");
                 }
             }
         }
         if (StringUtils.isNotBlank(chatParams.getBriefReference())) {
-            refrenceContent += chatParams.getBriefReference().trim() + "\n";
+            refrenceContent.append(chatParams.getBriefReference().trim()).append("\n");
         }
 
         // 内容要求
@@ -652,42 +777,41 @@ public class CollaborationWriter extends AIWriterBase {
         logger.info("根据范文或文章大纲，生成文章");
         String content = "";
         if (StringUtils.isNotBlank(exemplaryArticle)) {
-            content = writeArticleByExemplary(articleTitle, articleType, writingCause, articleLength, 
-                    exemplaryArticle, refrenceContent, outputStream);
+            content = writeArticleByExemplary(articleTitle, articleType, writingCause, articleLength,
+                    exemplaryArticle, refrenceContent.toString(), outputStream);
         } else {
-            content = writeArticleByOutline(articleTitle, articleType, writingCause, articleLength, 
-                    outline, refrenceContent, outputStream);
+            content = writeArticleByOutline(articleTitle, articleType, writingCause, articleLength,
+                    outline, refrenceContent.toString(), outputStream);
         }
 
         return content;
     }
 
     // 本地测试用
-    /*
-    public static void main(String[] args){
+     public static void main(String[] args){
         ICallLlm callLlm = new CallLlm();
-        CollaborationWriter collaborationWriter = new CollaborationWriter(callLlm, false, 8192, false);
-
+        CollaborationWriter collaborationWriter = new CollaborationWriter(callLlm, true, 8192, false);
+        
         ChatParams chatParams = new ChatParams();
         chatParams.setTitle("OA 系统研发部月度总结");
         chatParams.setGwwz("总结");
         chatParams.setCause("");
         chatParams.setArticleLength(1000);
-        chatParams.setOutline("");
+        chatParams.setOutline("一、本月工作总结\n二、重点工作进度\n三、存在问题及改进措施\n四、下月工作计划");
         chatParams.setImitative("");
-
+        
         System.out.println("=======================生成文章====================");
         try {
             String refer1 = FileUtils.readFileToString(new File("C:\\Users\\xman\\Desktop\\1.txt"), "UTF-8");
             String refer2 = FileUtils.readFileToString(new File("C:\\Users\\xman\\Desktop\\2.txt"), "UTF-8");
             String refer3 = FileUtils.readFileToString(new File("C:\\Users\\xman\\Desktop\\3.txt"), "UTF-8");
+
             chatParams.setReferences(new ArrayList<>(Arrays.asList(refer1, refer2, refer3)));
 
-            String content = collaborationWriter.writeArticle(chatParams, nullOutputStream);
+            String content = collaborationWriter.writeArticle(chatParams,nullOutputStream);
             System.out.println(content);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-         */
 }

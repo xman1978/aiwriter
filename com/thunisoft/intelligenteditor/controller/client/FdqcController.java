@@ -455,10 +455,10 @@ public class FdqcController extends AIBaseController {
         try(OutputStream output = response.getOutputStream()){
             StringBuilder answer_content = new StringBuilder();
             StringBuilder prompt_content = new StringBuilder();
-            if (chatParams.getType().contains(ConstV2.QW) && (StringUtils.isBlank(chatParams.getGwwz()) 
-                     || StringUtils.equals(chatParams.getGwwz(), "方案") || StringUtils.equals(chatParams.getGwwz(), "工作总结")) 
-                     && chatParams.getReferences() != null && chatParams.getReferences().size() > 0)  {
-                // xman:协作写作(参考范文全文写作，需要提供参考内容，类型为方案或工作总结，或不提供类型)
+            if (chatParams.getType().contains(ConstV2.QW) 
+                    && (StringUtils.equals(chatParams.getGwwz(), "方案") || StringUtils.equals(chatParams.getGwwz(), "工作总结")) 
+                    && chatParams.getReferences() != null && chatParams.getReferences().size() > 0)  {
+                // xman:协作写作(参考范文全文写作，需要提供参考内容，类型为方案或工作总结)
                 output.flush();
                 CollaborationWriter collaborationWriter = new CollaborationWriter(callLlm, chatParams.isUseThink(), -1, chatParams.isExchange());
                 answer_content.append(collaborationWriter.writeArticle(chatParams, output));

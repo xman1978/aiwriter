@@ -49,7 +49,6 @@ public class TemplateWriter extends AIWriterBase {
      * @param useThink 是否使用思考模式
      * @param maxToken 最大token数，必须大于0
      * @param isExchange 是否交换模式
-     * @throws IllegalArgumentException 如果参数无效
      */
     public TemplateWriter(ICallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
         super(callLlm, useThink, maxToken, isExchange);
@@ -192,6 +191,9 @@ public class TemplateWriter extends AIWriterBase {
 
             return filter;
         } catch (Exception e) {
+            if (e.getMessage().contains("大模型返回的结果为空")) {
+                return "";
+            }
             logger.error("筛选片段失败: {} \n", e.getMessage(), e);
         }
 
@@ -238,7 +240,7 @@ public class TemplateWriter extends AIWriterBase {
      * @param outputStream 输出流
      * @return 写作章节内容
      */
-    private String writeChapter(String title, JSONObject writingTemplate, String refrence, String writingCause, int wordsLimit, boolean onlyThinking, OutputStream outputStream) {
+    private String writeChapter(String title, JSONObject writingTemplate, String refrence, String writingCause, int wordsLimit, OutputStream outputStream) {
         String templateTitle = writingTemplate.getString("title");
         if ("引言".equals(templateTitle)) {
             writingCause = String.format("%s\n%s", "引言要求：开篇点题，背景+论点，一个自然段，≤200字。", writingCause);
@@ -247,7 +249,7 @@ public class TemplateWriter extends AIWriterBase {
 
         String wordsLimitPrompt = "";
         if (wordsLimit > 0) {
-            wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，但不能出现冗余的内容，不能破坏内容的完整性。\n", wordsLimit);
+            wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，但不能因为长度要求而出现冗余的内容，也不能破坏内容的完整性。\n", wordsLimit);
         }
 
         JSONArray prompt = buildJsonPrompt(this.writerPrompt, 
@@ -259,7 +261,7 @@ public class TemplateWriter extends AIWriterBase {
                                             String.format("\n【内容要求】：\n%s\n", writingCause),
                                             wordsLimitPrompt);
 
-        String content = invokeLlm(prompt, outputStream, onlyThinking, false);
+        String content = invokeLlm(prompt, outputStream, false, false);
 
         return content;
     }
@@ -444,7 +446,7 @@ public class TemplateWriter extends AIWriterBase {
                         safeWriteToStream(outputStream, String.format("\n%s\n", subtitle), false);
                     }
 
-                    String chapterContent = writeChapter(articleTitle, writingTemplateJson, refrence, writingCause, articleLength, false, outputStream);
+                    String chapterContent = writeChapter(articleTitle, writingTemplateJson, refrence, writingCause, articleLength, outputStream);
                     contentBuffer.append(chapterContent).append("\n");
                     
                 } catch (Exception e) {
