@@ -6,22 +6,21 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.stream.Collectors;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.Files;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
 
 import com.thunisoft.llm.writeragent.AIWriterBase;
-import com.thunisoft.llm.service.ICallLlm;
-import com.thunisoft.llm.service.impl.CallLlm;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.stream.Collectors;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.nio.charset.Charset;
 
 /**
  * 文本分割处理类
@@ -38,7 +37,7 @@ public class SpliteText extends AIWriterBase {
     private static final Pattern ATTACHMENT_PATTERN = Pattern.compile("^附[件]?[:：]?$");
 
     static {
-        PromptConfig.setPromptFileName("template.yml");
+        PromptConfig.setPromptFileName("splite.yml");
     }
     private static final String EXTRACT_CHUNK_OUTLINE_PROMPT = PromptConfig.getPrompt("extractChunkOutlinePrompt");
     private static final String EXTRACT_FIRST_LEVEL_TITLE_PROMPT = PromptConfig.getPrompt("extractFirstLevelTitlePrompt");
@@ -70,19 +69,17 @@ public class SpliteText extends AIWriterBase {
     /**
      * 构造函数
      * @param text 要处理的文本，不能为null
+     * @param extractFirstLevelTitle 是否提取一级标题
      * @param removeTitle 是否去除标题
      * @param removeHeading 是否去除一级、二级、三级标题
-     * @param extractFirstLevelTitle 是否提取一级标题
-     * @param callLlm 大模型接口
+     * @param callLlm CallLlm实例，不能为null
      * @param useThink 是否使用思考
      * @param maxToken 最大Token
      * @param isExchange 是否使用Exchange
-     * @param extParams 扩展参数
-     * @param outputStream 输出流
      * @throws IllegalArgumentException 如果输入文本为null或过长
      */
     public SpliteText(String text, boolean extractFirstLevelTitle, boolean removeTitle, boolean removeHeading, 
-        ICallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
+        XCallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
         super(callLlm, useThink, maxToken, isExchange);
 
         if (text == null) {
@@ -433,12 +430,12 @@ public class SpliteText extends AIWriterBase {
                 } else {
                     sb.append(line).append("\n");
                     if (sb.length() > maxToken * 0.8 || ATTACHMENT_PATTERN.matcher(line).matches()) {
-                        // 如果内容长度超过maxToken * 0.8，则调用大模型提取局部大纲
+                        // 如果内容长度超过 maxToken * 0.8，则调用大模型提取局部大纲
                         JSONArray prompt = buildJsonPrompt(EXTRACT_CHUNK_OUTLINE_PROMPT, String.format("\n【文本分块】：\n%s\n", sb.toString()));
                         String chunkOutline = invokeLlm(prompt, outputStream, true, true);
                         logger.info("局部大纲：{}", chunkOutline);
                         chunkOutlineList.add(chunkOutline);                 
-                        
+
                         sb.setLength(0);
                         chunkCount++;
 
@@ -447,11 +444,20 @@ public class SpliteText extends AIWriterBase {
                         }
                     }
                 }
-                
+            }
+            // 文章内容不用分块的，直接获取大纲
+            if (chunkOutlineList.isEmpty() && firstLevelTitleSet.isEmpty()) {
+                JSONArray prompt = buildJsonPrompt(EXTRACT_CHUNK_OUTLINE_PROMPT, String.format("\n【文本分块】：\n%s\n", sb.toString()));
+                String chunkOutline = invokeLlm(prompt, outputStream, true, true);
+                logger.info("全局大纲：{}", chunkOutline);
+                chunkOutlineList.add(chunkOutline);
+                chunkCount++;
+                sb.setLength(0);
             }
             // 分块提取一级标题后，再提取全文一级标题
             if (firstLevelTitleSet.isEmpty() && !chunkOutlineList.isEmpty()) {
                 if (chunkCount == 1) {
+                    // 只有一个分块，直接获取大纲
                     JSONObject firstLevelTitleJson = JSONObject.parseObject(chunkOutlineList.get(0));
                     JSONArray firstLevelTitles = firstLevelTitleJson.getJSONArray("firstLevelTitles");
                     if (firstLevelTitles.size() > 0) {
@@ -626,7 +632,7 @@ public class SpliteText extends AIWriterBase {
             Path path = Paths.get("C:\\Users\\xman\\Desktop\\1.txt");
             String text = Files.readAllLines(path, Charset.forName("UTF-8")).stream().collect(Collectors.joining("\n"));
 
-            SpliteText spliteText = new SpliteText(text, true, true, false, new CallLlm(), true, 4096, false);
+            SpliteText spliteText = new SpliteText(text, true, true, false, new CallLlm(), false, 4096, false);
             if (spliteText.checkIsHeading()) {
                 JSONArray jsonArray = spliteText.splitTextByChapter(4096);
                 System.out.println("按章节合并文本: " + jsonArray);

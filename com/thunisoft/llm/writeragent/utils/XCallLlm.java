@@ -1,63 +1,46 @@
-/**
- * @projectName intelligenteditor
- * @package com.thunisoft.llm.service.impl
- * @className com.thunisoft.llm.service.impl.CallLlm
- * @copyright Copyright 2025 Thunisoft, Inc All rights reserved.
- */
-package com.thunisoft.llm.service.impl;
+package com.thunisoft.llm.writeragent.utils;
 
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.IOException;
+import java.net.SocketTimeoutException;
+import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.ssl.SSLContextBuilder;
-import org.eclipse.jetty.util.IO;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.MediaType;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.X509Certificate;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSONException;
-import com.thunisoft.intelligenteditor.service.llm.LlmConfigService;
 import com.thunisoft.intelligenteditor.service.prompt.ReplaceWordService;
 import com.thunisoft.intelligenteditor.util.SessionUtil;
 import com.thunisoft.llm.domain.ReplaceWord;
 import com.thunisoft.llm.domain.ReplaceWords;
 import com.thunisoft.llm.service.ChatLlmParams;
-import com.thunisoft.llm.service.ICallLlm;
 import com.thunisoft.llm.util.FixedSizeQueue;
 
-
-/**
- * CallLlm
- * @description
- * @author huayu
- * @date 2025/1/7 14:14
- */
-
-
 @Service
-public class CallLlm implements ICallLlm, CommandLineRunner {
-    private static final Logger logger = LoggerFactory.getLogger(CallLlm.class);
+public class XCallLlm {
+    private static final Logger logger = LoggerFactory.getLogger(XCallLlm.class);
 
     private boolean debug = false;
     private String modeName;
@@ -69,7 +52,6 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
     private int top_k;
     private double top_p;
     private double presence_penalty;
-    private double frequency_penalty;
     private double repetition_penalty;
 
     private String thinkModelType = "common";
@@ -81,7 +63,6 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
     private String url;
     private String thinkUrl;
     private boolean replaceEnable;
-
 
     @Value("${jw.loginEnabled:false}")
     private boolean jwLoginEnabled;
@@ -100,8 +81,8 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
     @Value("${chat.llmparams.MaxTokens:8192}")
     private int MaxTokens;
 
-
     // xman: 本地测试用
+    /*
     private void initParams(){
         this.debug = false;
         this.modeName = "qwen3:30b-instruct";
@@ -113,7 +94,6 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.top_k = -1;
         this.top_p = 0.9;
         this.presence_penalty = 1;
-        this.frequency_penalty = 1;
         this.repetition_penalty = 1;
         this.stream = true;
         this.contianThinkLable = false;
@@ -124,8 +104,8 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.thinkModelType = "common";
         this.baseModelType = "common";
     }
+     */
     
-    /*
     private void initParams(){
         chatLlmParams.initParams();
         this.debug = chatLlmParams.getDebug();
@@ -137,7 +117,6 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.top_k = chatLlmParams.getTop_k();
         this.top_p = chatLlmParams.getTop_p();
         this.presence_penalty = chatLlmParams.getPresence_penalty();
-        this.frequency_penalty = chatLlmParams.getFrequency_penalty();
         this.repetition_penalty = chatLlmParams.getRepetition_penalty();
         this.stream = chatLlmParams.getStream();
         this.contianThinkLable = chatLlmParams.getContianThinkLable();
@@ -148,47 +127,70 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         this.thinkModelType = chatLlmParams.getThinkModelType();
         this.baseModelType = chatLlmParams.getBaseModelType();
     }
-    */
 
     @Autowired
     private ReplaceWordService replaceWordService;
 
-    @Autowired
-    private LlmConfigService llmConfigService;
-
     private List<ReplaceWord> wpsReplace = new ArrayList<>();
     private ReplaceWords replaceWords = new ReplaceWords();
-
-    @Override
-    public void run(String... args) throws Exception {
-        replaceWords.addAllReplaceWords(replaceWordService.selectAll());
-    }
 
     public void initializeData(){
         replaceWords.clearAllReplaceWords();
         replaceWords.addAllReplaceWords(replaceWordService.selectAll());
     }
 
-    @Override
-    public String callOpenAiInterface(boolean useThink, int maxToken, boolean isExchange, JSONArray messages, JSONObject extParams, OutputStream outputStream) {
-        initParams();
-        String answer = "";
-        String thinkStep = "";
-        long s = System.currentTimeMillis();
-        // xman: 如果使用融合模型，则需要在消息中添加/think或/no_think
-        if(StringUtils.equals(thinkModelType, "fusionModel") || StringUtils.equals(baseModelType, "fusionModel")){
-            logger.info("【大模型调用】 使用融合模型， useThink : {}", useThink);
-            messages.getJSONObject(0).put("content", messages.getJSONObject(0).getString("content") + (useThink? "/think":"/no_think"));
+    /**
+     * 构建参数
+     * @param messages
+     * @param maxToken
+     * @return
+     */
+    private JSONObject buildParams(JSONArray messages, int maxToken, boolean isExchage, boolean useThink, JSONObject extParams){
+        JSONObject ext = new JSONObject();
+        if(messages.size() == 3 && messages.getJSONObject(2).containsKey("name") && messages.getJSONObject(2).getString("name").equals("ext")){
+            ext = messages.getJSONObject(2);
+            messages.remove(2);
         }
-        // 构建参数
-        JSONObject params = buildParams(messages, maxToken, isExchange, useThink);
-        String url = buildUrl(useThink);
-        boolean thinking = false;
-        boolean isStop = false;
-        boolean allToThink = false;
-        if(extParams.containsKey("allToThink")){
-            allToThink = extParams.getBooleanValue("allToThink");
+
+        JSONObject think = new JSONObject();
+        if(StringUtils.equals(this.thinkModelType, "ds3.1") && useThink){
+            think.put("type", "enabled");
         }
+        if(StringUtils.equals(this.baseModelType, "ds3.1") && !useThink){
+            think.put("type", "disabled");
+        }
+
+        JSONArray msgs = formatMessage(messages, useThink);
+        JSONObject params = new JSONObject();
+        params.put("messages", msgs);
+        if(think.keySet().size() > 0){
+            params.put("thinking", think);
+        }
+        params.put("model", useThink? this.thinkModeName: this.modeName);
+        params.put("temperature", isExchage? 0.9: this.temperature);
+        params.put("top_p", this.top_p);
+        if(ext.keySet().size() > 1){
+            // 遍历一下并赋值
+            ext.remove("name");
+            //            params.put("extra_body", ext);
+            for(String key : ext.keySet()){
+                params.put(key, ext.get(key));
+            }
+        }
+        if(this.top_k != -1){
+            params.put("top_k", this.top_k);
+        }
+        if(this.presence_penalty != -10){
+            params.put("presence_penalty", this.presence_penalty);
+        }
+        params.put("repetition_penalty", this.repetition_penalty);
+        params.put("stream", this.stream);
+        if(maxToken > 0){
+            params.put("max_tokens", maxToken);
+        } else {
+            params.put("max_tokens", this.MaxTokens);
+        }
+
         String modelType = "";
         if(extParams.containsKey("model_type")){
             modelType = extParams.getString("model_type");
@@ -196,21 +198,22 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
         // xman: 如果模型是glm-4，则设置response_format 为 json_object 才能正确的输出json格式
         if(extParams.containsKey("response_format") && modelType.matches("^(glm4|qwen3)$")){
             String responseFormat = extParams.getString("response_format");
-            if(StringUtils.isBlank(responseFormat) || ! responseFormat.equals("json_object") || ! responseFormat.equals("text")){
+            if(StringUtils.isBlank(responseFormat) || (!responseFormat.equals("json_object") && !responseFormat.equals("text"))){
                 responseFormat = "text";
             }
             params.put("response_format", new JSONObject().put("type", responseFormat));
         }
         // xman: qwen3 是否开启思考模式
         if(useThink && extParams.containsKey("enable_thinking") && modelType.matches("^qwen3$")) {
+            boolean enableThinking = extParams.getBooleanValue("enable_thinking");
             // 阿里云模型支持的参数
-            params.put("enable_thinking", extParams.getBooleanValue("enable_thinking"));
+            params.put("enable_thinking", enableThinking);
             // 火山引擎模型支持的参数
-            params.put("thinking", new JSONObject().put("type", extParams.getBooleanValue("enable_thinking") ? "enabled" : "disabled"));
+            params.put("thinking", new JSONObject().put("type", enableThinking ? "enabled" : "disabled"));
             // OpenRouter模型支持的参数
-            params.put("reasoning", new JSONObject().put("enabled", extParams.getBooleanValue("enable_thinking")));
+            params.put("reasoning", new JSONObject().put("enabled", enableThinking));
             // ollama模型支持的参数
-            params.put("think", extParams.getInteger("enable_thinking"));
+            params.put("think", enableThinking ? 1 : 0);
         }
         // xman: qwen3 可以限制思考长度
         if(useThink && extParams.containsKey("thinking_budget") && modelType.matches("^qwen3$")){
@@ -219,43 +222,139 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
             // ollama模型支持的参数
             params.put("think", "low");
         }
+
+        return params;
+    }
+
+    private JSONArray formatMessage(JSONArray messages, boolean useThink) {
+        JSONArray newMessages = new JSONArray();
+        for (int i = 0; i < messages.size(); i++) {
+            JSONObject msg = messages.getJSONObject(i);
+            String content = msg.getString("content");
+            if (content != null && content.trim().length() > 0) {
+                JSONObject newMsg = new JSONObject();
+                newMsg.put("role", msg.getString("role"));
+                try {
+                    // xman: 本地测试用
+                    // int halfMaxInput = 8192 * 2;
+                    int halfMaxInput = (int) (chatLlmParams.getMaxInput() / 2);
+                    if (content.length() > halfMaxInput) {
+                        logger.info("【大模型】获取最大输入长度：{}， 文字长度{}", halfMaxInput * 2, content.length());
+                        content = content.substring(0, halfMaxInput);
+                    }
+                } catch (Exception e) {
+                    logger.error("【大模型】获取最大输入长度失败", e);
+                }
+                newMsg.put("content", content);
+                newMessages.add(newMsg);
+            }
+            // xman: 如果使用融合模型，则需要在消息中添加/think或/no_think
+            if(i == 0 && (StringUtils.equals(thinkModelType, "fusionModel") || StringUtils.equals(baseModelType, "fusionModel"))){
+                content = newMessages.getJSONObject(i).getString("content") + (useThink? "/think":"/no_think");
+                newMessages.getJSONObject(i).put("content", content);
+            }
+        }
+        return newMessages;
+    }
+
+    public String callOpenAiInterface(boolean useThink, int maxToken, boolean isExchange, JSONArray messages, JSONObject extParams, OutputStream outputStream) {
+        initParams();
+        String answer = "";
+        String thinkStep = "";
+        long s = System.currentTimeMillis();
+
+        // 构建参数
+        JSONObject params = buildParams(messages, maxToken, isExchange, useThink, extParams);
+
+        String url = buildUrl(useThink);
+        boolean thinking = false;
+        boolean isStop = false;
+        boolean allToThink = false;
+        if(extParams.containsKey("allToThink")){
+            allToThink = extParams.getBooleanValue("allToThink");
+        }
+        
         // xman: 如果只是给内部程序使用，则只需要输出思考过程到用户界面，不输出回答到用户界面
         boolean onlyThinking = false;
         if(extParams.containsKey("only_thinking")){
             onlyThinking = extParams.getBooleanValue("only_thinking");
         }
         // 开始调用
-        try(CloseableHttpClient httpclient = HttpClients.custom()
-                .setSSLContext(new SSLContextBuilder().loadTrustMaterial(null, (chain, authType) -> true).build())
-                .setSSLHostnameVerifier(NoopHostnameVerifier.INSTANCE)
-                .build()) {
-            HttpPost httpPost = new HttpPost(url);
-            RequestConfig requestConfig = RequestConfig.custom().setSocketTimeout(socketTimeout).setConnectTimeout(connectTimeout).build();
-            httpPost.setConfig(requestConfig);
-            String jsonString = params.toString();
+        try {
+            // 创建信任所有证书的 TrustManager
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    @Override
+                    public void checkClientTrusted(X509Certificate[] chain, String authType) {
+                    }
 
+                    @Override
+                    public void checkServerTrusted(X509Certificate[] chain, String authType) {
+                    }
+
+                    @Override
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return new X509Certificate[]{};
+                    }
+                }
+            };
+            
+            // 创建 SSLContext
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
+            
+            // 创建 OkHttpClient
+            OkHttpClient httpclient = new OkHttpClient.Builder()
+                    .sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
+                    .hostnameVerifier((hostname, session) -> true)
+                    .connectTimeout(connectTimeout, TimeUnit.MILLISECONDS)
+                    .readTimeout(socketTimeout, TimeUnit.MILLISECONDS)
+                    .writeTimeout(socketTimeout, TimeUnit.MILLISECONDS)
+                    .build();
+            
+            String jsonString = params.toString();
+            MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
+            RequestBody requestBody = RequestBody.create(jsonString, mediaType);
+            
+            Request.Builder requestBuilder = new Request.Builder()
+                    .url(url)
+                    .post(requestBody)
+                    .addHeader("Content-Type", "application/json;charset=utf-8")
+                    .addHeader("Authorization", "Bearer " + (useThink? this.thinkToken: this.token))
+                    .addHeader("appkey", (useThink? this.thinkToken: this.token))
+                    .addHeader("X-Mt-Authorization", (useThink? this.thinkToken: this.token));
+            
             if(jwLoginEnabled){
                 String userid = sessionUtil.getUserid();
                 String token= sessionUtil.getToken();
-                httpPost.setHeader("User-Id", userid);
-                httpPost.setHeader("Token", token);
+                requestBuilder.addHeader("User-Id", userid);
+                requestBuilder.addHeader("Token", token);
             }
-            httpPost.setEntity(new StringEntity(jsonString, "UTF-8"));
-            httpPost.setHeader("Content-Type", "application/json;charset=utf-8");
-            httpPost.setHeader("Authorization", "Bearer " + (useThink? this.thinkToken: this.token));
-            httpPost.setHeader("appkey", (useThink? this.thinkToken: this.token));
-            httpPost.setHeader("X-Mt-Authorization", (useThink? this.thinkToken: this.token));
+            
+            Request request = requestBuilder.build();
+            
             if(debug){
                 logger.info("message = {}", messages);
             }
-            try (CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
-                HttpEntity httpEntity = httpResponse.getEntity();
+            
+            try (Response httpResponse = httpclient.newCall(request).execute()) {
+                int statusCode = httpResponse.code();
+                if(statusCode != 200){
+                    String err = httpResponse.body() != null ? httpResponse.body().string() : "";
+                    logger.error("调用大模型失败，HTTP 状态码={}, body={}", statusCode, err);
+                    return "";
+                }
+                
+                if (httpResponse.body() == null) {
+                    logger.error("调用大模型失败，响应体为空");
+                    return "";
+                }
 
                 FixedSizeQueue<String> fixedSizeQueue = new FixedSizeQueue<>(5);
 
                 if (!stream) {
                     // 非流式输出
-                    String result = IOUtils.toString(httpEntity.getContent(), StandardCharsets.UTF_8);
+                    String result = httpResponse.body().string();
                     try {
                         JSONObject jsonObject = JSONObject.parseObject(result);
                         JSONObject object = jsonObject.getJSONArray("choices").getJSONObject(0);
@@ -291,14 +390,13 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                         outputStream.flush();
                     } catch(JSONException e) {
                         logger.error("【大模型调用】非流式结果解析异常，解析内容：{}", result, e);
-                    }
-                        catch (Exception e) {
+                    } catch (Exception e) {
                         logger.error("【大模型调用】非流式结果调用异常，模型名称是{}", useThink? thinkModeName: modeName, e);
                     }
                 } else {
                     // 流式输出
                     boolean isFirstOutput = true;
-                    InputStreamReader reader = new InputStreamReader(httpEntity.getContent(), StandardCharsets.UTF_8);
+                    InputStreamReader reader = new InputStreamReader(httpResponse.body().byteStream(), StandardCharsets.UTF_8);
                     char[] buff = new char[2048];
                     int length = 0;
                     String prestr = "";
@@ -333,16 +431,21 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                         if(debug){
                             logger.info("【大模型调用-debug】 当前输出的句子是：{}", resultPre);
                         }
+                        // 处理中断问题：如果数据不完整（不以}结尾），累积到temp中
                         if(!resultPre.trim().endsWith("}") ){
                             temp += resultPre;
                             continue;
                         }
-                        if(resultPre.trim().endsWith("}") && !temp.equals("")){
-                            temp += resultPre;
-                        }
-                        if(temp.trim().endsWith("}")){
-                            resultPre = temp;
-                            temp = "";
+                        // 如果数据完整（以}结尾）
+                        if(resultPre.trim().endsWith("}")){
+                            // 如果之前有累积的不完整数据，先合并
+                            if(!temp.equals("")){
+                                temp += resultPre;
+                                resultPre = temp;
+                                temp = "";
+                            }
+                            // 如果temp为空，说明resultPre本身就是完整的，直接使用resultPre
+                            // resultPre保持不变，继续后续处理
                         }
                         // 整合完成
                         String[] resultArr = resultPre.split("\n");
@@ -474,7 +577,6 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                                                             outputStream.flush();
                                                         } catch (IOException ex) {
                                                         }
-                                                        outputStream.close();
                                                         break;
                                                     }catch (Exception e) {
                                                         logger.error("【大模型】大模型生成过程出错！内容：{}", result, e);
@@ -555,7 +657,10 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                                             }catch (IOException e){
                                                 // xman: 只有输出流写数据失败失败时，关闭输出流，并退出循环
                                                 logger.error("【大模型】调用大模型过程中客户端关闭流，向输出流写数据失败！", e);
-                                                outputStream.close();
+                                                try {
+                                                    outputStream.flush();
+                                                } catch (IOException ex) {
+                                                }
                                                 break;
                                             }catch (Exception e) {
                                                 logger.error("【大模型】大模型生成过程出错！内容：{}", result, e);
@@ -619,101 +724,28 @@ public class CallLlm implements ICallLlm, CommandLineRunner {
                     }
                 }
             }
+        }catch (SocketTimeoutException e){
+            // Socket读取超时异常
+            logger.error("【大模型调用】Socket读取超时异常，URL={}, Socket超时时间={}ms", url, socketTimeout, e);
+            return "";
+        }catch (ConnectException e){
+            // 连接异常（可能包含超时）
+            logger.error("【大模型调用】连接异常，URL={}", url, e);
+            return "";
+        }catch (IOException e){
+            // 其他IO异常，检查是否包含超时信息
+            logger.error("【大模型调用】IO异常，URL={}，错误信息：{}", url, e.getMessage());
+            return "";
         }catch (Exception e){
-            logger.error("【大模型调用】 大模型调用异常", e);
+            // 其他异常
+            logger.error("【大模型调用】大模型调用异常，URL={}", url, e);
+            return "";
         }
         logger.info("【大模型调用】通过大模型完成对话完成，耗时{}",(System.currentTimeMillis() - s));
         if(debug){
             logger.info("【大模型调用调试】输入大模型的信息是 {}, 输出的结果是 {}", params, answer);
         }
         return StringUtils.isNotBlank(thinkStep)? ("<think>\n" + thinkStep + "</think>" + answer) : answer;
-    }
-
-    @Deprecated
-    @Override
-    public String callLlmHuayuInterface(int maxToken, boolean isExchange, JSONArray messages, OutputStream outputStream) {
-        return null;
-    }
-
-
-    /**
-     * 构建参数
-     * @param messages
-     * @param maxToken
-     * @return
-     */
-    private JSONObject buildParams(JSONArray messages, int maxToken, boolean isExchage, boolean useThink){
-        JSONObject ext = new JSONObject();
-        if(messages.size() == 3 && messages.getJSONObject(2).containsKey("name") && messages.getJSONObject(2).getString("name").equals("ext")){
-            ext = messages.getJSONObject(2);
-            messages.remove(2);
-        }
-
-        JSONObject think = new JSONObject();
-        if(StringUtils.equals(this.thinkModelType, "ds3.1") && useThink){
-            think.put("type", "enabled");
-        }
-        if(StringUtils.equals(this.baseModelType, "ds3.1") && !useThink){
-            think.put("type", "disabled");
-        }
-
-        JSONArray msgs = formatMessage(messages);
-        JSONObject params = new JSONObject();
-        params.put("messages", msgs);
-        if(think.keySet().size() > 0){
-            params.put("thinking", think);
-        }
-        params.put("model", useThink? this.thinkModeName: this.modeName);
-        params.put("temperature", isExchage? 0.9: this.temperature);
-        params.put("top_p", this.top_p);
-        if(ext.keySet().size() > 1){
-            // 遍历一下并赋值
-            ext.remove("name");
-            //            params.put("extra_body", ext);
-            for(String key : ext.keySet()){
-                params.put(key, ext.get(key));
-            }
-        }
-        if(this.top_k != -1){
-            params.put("top_k", this.top_k);
-        }
-        if(this.presence_penalty != -10){
-            params.put("presence_penalty", this.presence_penalty);
-        }
-        params.put("repetition_penalty", this.repetition_penalty);
-        params.put("stream", this.stream);
-        if(maxToken > 0){
-            params.put("max_tokens", maxToken);
-        } else {
-            params.put("max_tokens", this.MaxTokens);
-        }
-        return params;
-    }
-
-    private JSONArray formatMessage(JSONArray messages) {
-        JSONArray newMessages = new JSONArray();
-        for (int i = 0; i < messages.size(); i++) {
-            JSONObject msg = messages.getJSONObject(i);
-            String content = msg.getString("content");
-            if (content != null && content.trim().length() > 0) {
-                JSONObject newMsg = new JSONObject();
-                newMsg.put("role", msg.getString("role"));
-                try {
-                    // xman: 本地测试用
-                    int halfMaxInput = 8192 * 2;
-                    // int halfMaxInput = (int) (chatLlmParams.getMaxInput() / 2);
-                    if (content.length() > halfMaxInput) {
-                        logger.info("【大模型】获取最大输入长度：{}， 文字长度{}", halfMaxInput * 2, content.length());
-                        content = content.substring(0, halfMaxInput);
-                    }
-                } catch (Exception e) {
-                    logger.error("【大模型】获取最大输入长度失败", e);
-                }
-                newMsg.put("content", content);
-                newMessages.add(newMsg);
-            }
-        }
-        return newMessages;
     }
 
 
