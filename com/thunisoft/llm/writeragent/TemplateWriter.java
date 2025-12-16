@@ -44,11 +44,10 @@ public class TemplateWriter extends AIWriterBase {
      * 构造函数
      * @param callLlm CallLlm实例，不能为null
      * @param useThink 是否使用思考模式
-     * @param maxToken 最大token数，必须大于0
      * @param isExchange 是否交换模式
      */
-    public TemplateWriter(XCallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
-        super(callLlm, useThink, maxToken, isExchange);
+    public TemplateWriter(XCallLlm callLlm, boolean useThink, boolean isExchange) {
+        super(callLlm, useThink, isExchange);
 
         PromptConfig.setPromptFileName("template.yml");
         this.refrenceExtractPrompt = PromptConfig.getPrompt("refrenceExtractPrompt");
@@ -97,7 +96,7 @@ public class TemplateWriter extends AIWriterBase {
         
         // 范文截取
         String exemplaryArticleText = exemplaryArticle.substring(0,
-                Math.min(exemplaryArticle.length(), (int) (this.MAX_REFERENCE_LENGTH * 0.6)));
+                Math.min(exemplaryArticle.length(), (int) (this.MAX_INPUT_TOKEN * 0.6)));
 
         try {
             this.writingArticleTypeJson = getArticleType(String.format("文章标题：%s\n文章类型：%s", articleTitle, articleType), outputStream);
@@ -340,13 +339,12 @@ public class TemplateWriter extends AIWriterBase {
             refrenceContent += chatParams.getBriefReference().trim() + "\n";
         }
 
-        SpliteText spliteText = new SpliteText(refrenceContent, false, true, true,
-                this.callLlm, this.useThink, this.maxToken, this.isExchange);
+        SpliteText spliteText = new SpliteText(refrenceContent, false, true, true, this.callLlm, this.useThink, this.isExchange);
 
         // 参考内容分块，每块不超过MAX_REFERENCE_LENGTH
         JSONArray refrenceContentArray = new JSONArray();
         if (StringUtils.isNotBlank(refrenceContent)) {
-            refrenceContentArray = spliteText.mergeParagraph(this.MAX_REFERENCE_LENGTH);
+            refrenceContentArray = spliteText.mergeParagraph(this.MAX_INPUT_TOKEN);
             if (refrenceContentArray.isEmpty()) {
                 logger.warn("参考内容分块失败，返回空数组");
             }
@@ -391,14 +389,16 @@ public class TemplateWriter extends AIWriterBase {
             contentBuffer.append(articleTitle).append("\n");
 
             // 范文分块
-            spliteText = new SpliteText(exemplaryArticle, true, false, false,
-                this.callLlm, this.useThink, this.maxToken, this.isExchange);
+            boolean isPreface = false;
+            spliteText = new SpliteText(exemplaryArticle, true, false, false, this.callLlm, this.useThink, this.isExchange);
             JSONArray arrayJson = new JSONArray();
             if (spliteText.checkIsHeading()) {
-                arrayJson = spliteText.splitTextByChapter(MAX_REFERENCE_LENGTH);
+                arrayJson = spliteText.splitTextByChapter(MAX_INPUT_TOKEN);
+                isPreface = true;
             }
             if (!spliteText.checkIsHeading() || arrayJson.isEmpty()) {
-                arrayJson = spliteText.splitTextByParagraph(MAX_REFERENCE_LENGTH);
+                arrayJson = spliteText.splitTextByParagraph(MAX_INPUT_TOKEN);
+                isPreface = false;
             }
 
             // 生成正文
@@ -409,11 +409,14 @@ public class TemplateWriter extends AIWriterBase {
                         throw new IllegalArgumentException("范文章节为空");
                     }
 
+                    logger.info("范文章节: {}", exemplaryChapterJson.toJSONString());
+
                     // 创建章节的写作模板
                     String chapterTitle = exemplaryChapterJson.getString("title");
                     if (StringUtils.isBlank(chapterTitle)) {
                         chapterTitle = "段落";
                     }
+
                     safeWriteToStream(outputStream, String.format("\n【 分析范文章节《%s》 ... 】\n", chapterTitle), true);
                     JSONObject writingTemplateJson = buildWriterTemplateByChapter(exemplaryChapterJson, nullOutputStream);
                     if (writingTemplateJson == null) {
@@ -425,7 +428,7 @@ public class TemplateWriter extends AIWriterBase {
                         throw new IllegalArgumentException("范文章节的写作模板title为空");
                     }
 
-                    logger.info("范文章节的写作模板: {}", writingTemplateJson.toJSONString());
+                    logger.debug("范文章节的写作模板: {}", writingTemplateJson.toJSONString());
 
                     // 初筛参考内容，避免参考内容过多导致大模型无法处理
                     String refrenceText = "";
@@ -439,9 +442,14 @@ public class TemplateWriter extends AIWriterBase {
                     safeWriteToStream(outputStream, String.format("\n【 萃取章节《%s》的参考内容 ... 】\n", subtitle), true);
                     String refrence = extractRefrenceContent(refrenceText, writingTemplateJson, outputStream);
 
+                    logger.debug("萃取章节《{}》的参考内容: {}", subtitle, refrence);
+
                     // 章节写作
                     safeWriteToStream(outputStream, String.format("\n【依据参考内容】：\n%s\n【章节<<%s>>写作中 ... 】\n", refrence, subtitle), true);
-                    if (!subtitle.matches("^(引言|段落\\s*)$")) {          
+                    if (!subtitle.matches("^(引言|段落\\s*)$")) {
+                        if (!subtitle.matches("^[第]?[一二三四五六七八九十零〇]+[\\.\\s、章篇部分节]{1}.*$")) {
+                            subtitle = (isPreface ? numberToChinese(i) : numberToChinese(i + 1)) + "、" + subtitle;
+                        }
                         contentBuffer.append(subtitle).append("\n");
                         safeWriteToStream(outputStream, String.format("\n%s\n", subtitle), false);
                     }
@@ -466,7 +474,7 @@ public class TemplateWriter extends AIWriterBase {
     // 本地测试用
     /*
     public static void main(String[] args){
-        TemplateWriter templateWriter = new TemplateWriter(new CallLlm(), false, 8192, false);
+        TemplateWriter templateWriter = new TemplateWriter(new XCallLlm(), true, false);
         
         ChatParams chatParams = new ChatParams();
         chatParams.setTitle("产品研发部月度总结");
@@ -484,7 +492,7 @@ public class TemplateWriter extends AIWriterBase {
 
             chatParams.setReferences(new ArrayList<>(Arrays.asList(refer1, refer2, refer3)));
 
-            String content = templateWriter.writeArticle(chatParams,nullOutputStream);
+            String content = templateWriter.writeArticle(chatParams, nullOutputStream);
             System.out.println(content);
         } catch (Exception e) {
             e.printStackTrace();

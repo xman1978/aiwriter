@@ -53,8 +53,8 @@ public class CollaborationWriter extends AIWriterBase {
      * @param maxToken   最大token数，必须大于0
      * @param isExchange 是否交换模式
      */
-    public CollaborationWriter(XCallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
-        super(callLlm, useThink, maxToken, isExchange);
+    public CollaborationWriter(XCallLlm callLlm, boolean useThink, boolean isExchange) {
+        super(callLlm, useThink, isExchange);
 
         PromptConfig.setPromptFileName("collaboration.yml");
         this.chapterWritingPrompt = PromptConfig.getPrompt("chapterWritingPrompt");
@@ -105,7 +105,7 @@ public class CollaborationWriter extends AIWriterBase {
         }
 
         // 范文截取
-        String exemplaryArticleText = exemplaryArticle.substring(0, Math.min(exemplaryArticle.length(), (int) (this.MAX_REFERENCE_LENGTH * 0.6)));
+        String exemplaryArticleText = exemplaryArticle.substring(0, Math.min(exemplaryArticle.length(), (int) (this.MAX_INPUT_TOKEN * 0.6)));
 
         try {
             this.exemplaryArticleTypeJson = getArticleType(exemplaryArticleText, outputStream);
@@ -225,7 +225,7 @@ public class CollaborationWriter extends AIWriterBase {
             String result = invokeLlm(prompt, outputStream, true, false);
 
             // logger.info(" 原始参考内容：{}", referenceContent);
-            logger.debug(" 章节 {} 筛选后的参考内容：{}", writingTemplate.getString("title"), result);
+            logger.info(" 章节 {} 筛选后的参考内容：{}", writingTemplate.getString("title"), result);
 
             return result;
         } catch (Exception e) {
@@ -290,9 +290,8 @@ public class CollaborationWriter extends AIWriterBase {
             JSONArray jsonArray = new JSONArray();
             for (String articleContent : articleContents) {
                 if (StringUtils.isBlank(articleContent)) continue;
-                SpliteText spliteText = new SpliteText(articleContent, false, true, false,
-                        this.callLlm, this.useThink, this.maxToken, this.isExchange);
-                JSONArray articleContentArray = spliteText.mergeParagraph(this.MAX_REFERENCE_LENGTH);
+                SpliteText spliteText = new SpliteText(articleContent, false, true, false, this.callLlm, this.useThink, this.isExchange);
+                JSONArray articleContentArray = spliteText.mergeParagraph(this.MAX_INPUT_TOKEN);
                 if (articleContentArray.isEmpty()) continue;
                 jsonArray.addAll(articleContentArray);
             }
@@ -339,7 +338,7 @@ public class CollaborationWriter extends AIWriterBase {
             int refLength = 0;
             JSONArray refArray = new JSONArray();
             JSONArray mergedReferenceCollection = new JSONArray();
-            int maxRefLength = (int) (this.MAX_REFERENCE_LENGTH * 0.8);
+            int maxRefLength = (int) (this.MAX_INPUT_TOKEN * 0.8);
             for (int i = 0; i < referenceCollection.size(); i++) {
                 JSONObject refChunk = referenceCollection.getJSONObject(i);
                 if (refChunk == null || StringUtils.isBlank(refChunk.getString("content")))
@@ -464,27 +463,6 @@ public class CollaborationWriter extends AIWriterBase {
     }
 
     /**
-     * 将数字转换为中文
-     * 
-     * @param number 1-99之间的数字
-     * @return 1-99之间的数字对应的中文
-     */
-    private String numberToChinese(int number) throws IllegalArgumentException {
-        if (number < 1 || number > 99) {
-            throw new IllegalArgumentException("数字必须在1-99之间");
-        }
-        String[] digit = { "零", "一", "二", "三", "四", "五", "六", "七", "八", "九" };
-        if (number < 10) {
-            return digit[number];
-        }
-        int ten = number / 10, rem = number % 10;
-        if (ten == 1) {
-            return (rem == 0 ? "十" : "十" + digit[rem]);
-        }
-        return digit[ten] + "十" + (rem == 0 ? "" : digit[rem]);
-    }
-
-    /**
      * 验证ChatParams的完整性
      * 
      * @param chatParams 要验证的参数
@@ -541,14 +519,13 @@ public class CollaborationWriter extends AIWriterBase {
             contentBuffer.append(articleTitle).append("\n");
 
             // 范文分块
-            SpliteText spliteText = new SpliteText(exemplaryArticle, true, false, false,
-                    this.callLlm, this.useThink, this.maxToken, this.isExchange);
+            SpliteText spliteText = new SpliteText(exemplaryArticle, true, false, false, this.callLlm, this.useThink, this.isExchange);
             JSONArray arrayJson = new JSONArray();
             if (spliteText.checkIsHeading()) {
-                arrayJson = spliteText.splitTextByChapter(MAX_REFERENCE_LENGTH);
+                arrayJson = spliteText.splitTextByChapter(MAX_INPUT_TOKEN);
             }
             if (!spliteText.checkIsHeading() || arrayJson.isEmpty()) {
-                arrayJson = spliteText.splitTextByParagraph(MAX_REFERENCE_LENGTH);
+                arrayJson = spliteText.splitTextByParagraph(MAX_INPUT_TOKEN);
             }
 
             // 生成正文
@@ -694,14 +671,14 @@ public class CollaborationWriter extends AIWriterBase {
                             filteredReferenceCollection.addAll(finalizeReference(referenceCollection.getJSONArray(j), chapterTemplateJson, nullOutputStream));
                         }
 
-                        logger.debug("筛选章节《{}》的参考内容：{}", subtitle, filteredReferenceCollection.toJSONString());
+                        // logger.info("筛选章节《{}》的参考内容：{}", subtitle, filteredReferenceCollection.toJSONString());
 
                         // 规划章节结构
                         safeWriteToStream(outputStream, String.format("\n【 规划章节《%s》的结构 ... 】\n", subtitle), true);
                         chapterStructure = planChapterStructure(articleTitle, chapterTemplateJson,
                                 filteredReferenceCollection, writingCause, nullOutputStream);
 
-                        logger.debug("章节结构：{}", chapterStructure);
+                        // logger.info("章节结构：{}", chapterStructure);
                     }
 
                     logger.info("处理参考内容");
@@ -803,15 +780,15 @@ public class CollaborationWriter extends AIWriterBase {
     // 本地测试用
     /*
     public static void main(String[] args){
-        CollaborationWriter collaborationWriter = new CollaborationWriter(new CallLlm(), false, 8192, false);
+        CollaborationWriter collaborationWriter = new CollaborationWriter(new XCallLlm(), true, false);
         
         ChatParams chatParams = new ChatParams();
         chatParams.setTitle("OA 产品研发部月度工作总结");
         chatParams.setGwwz("工作总结");
         chatParams.setCause("");
         chatParams.setArticleLength(1000);
-        // chatParams.setOutline("一、本月工作总结\n二、重点工作进度\n三、存在问题及改进措施\n四、下月工作计划");
-        // chatParams.setImitative("");
+        chatParams.setOutline("一、本月工作总结\n二、重点工作进度\n三、存在问题及改进措施\n四、下月工作计划");
+        chatParams.setImitative("");
         
         System.out.println("=======================生成文章====================");
         try {
@@ -820,7 +797,7 @@ public class CollaborationWriter extends AIWriterBase {
             String refer1 = FileUtils.readFileToString(new File("C:\\Users\\xman\\Desktop\\1.txt"), "UTF-8");
             String refer3 = FileUtils.readFileToString(new File("C:\\Users\\xman\\Desktop\\3.txt"), "UTF-8");
 
-            chatParams.setImitative(refer1);
+            // chatParams.setImitative(refer1);
 
             chatParams.setReferences(new ArrayList<>(Arrays.asList(refer1, refer2, refer3)));
 

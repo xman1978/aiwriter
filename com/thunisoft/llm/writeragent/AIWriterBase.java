@@ -20,9 +20,8 @@ public class AIWriterBase {
     private static final Logger logger = LoggerFactory.getLogger(AIWriterBase.class);
 
     // 模型参数
-    protected final int MAX_REFERENCE_LENGTH;
+    protected final int MAX_INPUT_TOKEN;
     protected final int THINKING_BUDGET;
-    protected final int DEFAULT_MAX_TOKEN;
     protected final boolean THINKING_ENABLE;
 
     // 修复JSON格式
@@ -31,6 +30,9 @@ public class AIWriterBase {
     private static final Pattern LEADING_WHITESPACE_PATTERN = Pattern.compile("^[\\s\\u3000\\r\\n]+");
     private static final Pattern TRAILING_WHITESPACE_PATTERN = Pattern.compile("[\\s\\u3000\\r\\n]+$");
     private static final Pattern ILLEGAL_CHAR_PATTERN = Pattern.compile("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]");
+
+    // 根据思考过程推理分析
+    protected final String THINKING_RESULT_PROMPT;
 
     protected final XCallLlm callLlm;
     protected final boolean useThink;
@@ -52,26 +54,26 @@ public class AIWriterBase {
      * 构造函数
      * @param callLlm CallLlm实例，不能为null
      * @param useThink 是否使用思考模式
-     * @param maxToken 最大token数，必须大于0
      * @param isExchange 是否交换模式
      * @throws IllegalArgumentException 如果参数无效
      */
-    public AIWriterBase(XCallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
+    public AIWriterBase(XCallLlm callLlm, boolean useThink, boolean isExchange) {
         if (callLlm == null) {
             throw new IllegalArgumentException("CallLlm实例不能为null");
         }
         PromptConfig.setPromptFileName("config.yml");
         this.THINKING_BUDGET = Integer.parseInt(PromptConfig.getPromptOrDefault("thinkBudget", "256"));
-        this.DEFAULT_MAX_TOKEN = Integer.parseInt(PromptConfig.getPromptOrDefault("maxToken", "8192"));
+        this.MAX_INPUT_TOKEN = Integer.parseInt(PromptConfig.getPromptOrDefault("maxInputToken", "4096"));
         this.THINKING_ENABLE = Boolean.parseBoolean(PromptConfig.getPromptOrDefault("thinkEnable", "true"));
 
-        this.MAX_REFERENCE_LENGTH = (int) (this.DEFAULT_MAX_TOKEN / 2);
-        
         this.FIX_JSON_PROMPT = PromptConfig.getPromptOrDefault("fixJsonPrompt", "");
+
+        this.THINKING_RESULT_PROMPT = PromptConfig.getPromptOrDefault("thinkingResultPrompt", "");
 
         this.callLlm = callLlm;
         this.useThink = useThink;
-        this.maxToken = maxToken > 0 ? maxToken : this.DEFAULT_MAX_TOKEN;
+        // -1 表示输出不限制token数，由模型自行决定
+        this.maxToken = Integer.parseInt(PromptConfig.getPromptOrDefault("maxOutputToken", "-1"));; 
         this.isExchange = isExchange;
         
         this.modelType = this.useThink ? PromptConfig.getPromptOrDefault("thinkModel", "") : PromptConfig.getPromptOrDefault("baseModel", "");
@@ -88,17 +90,34 @@ public class AIWriterBase {
 
     /*
      * 去除 <think> ... </think> 部分，如果有的话
-     * @param jsonString JSON 字符串
-     * @return 去除 <think> ... </think> 部分后的 JSON 字符串
+     * @param content 模型输出的内容
+     * @return 去除 <think> ... </think> 部分后的内容
      */
-    private String removeThink(String jsonString) {
-        if (jsonString == null || jsonString.isEmpty()) {
-            return jsonString;
+    private String removeThink(String content) {
+        if (StringUtils.isBlank(content)) {
+            return "";
         }
         
-        jsonString = THINK_PATTERN.matcher(jsonString).replaceAll("");
+        return THINK_PATTERN.matcher(content).replaceAll("");
+    }
 
-        return jsonString;
+    /*
+     * 获取思考过程
+     * @param content 模型输出的内容
+     * @return 思考过程
+     */
+    private String getThink(String content) {
+        if (StringUtils.isBlank(content)) {
+            return "";
+        }
+
+        StringBuffer thinkStep = new StringBuffer();
+        Matcher matcher = THINK_PATTERN.matcher(content);
+        if (matcher.find()) {
+            thinkStep.append(matcher.group(1));
+        }
+
+        return thinkStep.toString().trim();
     }
 
     /*
@@ -158,11 +177,10 @@ public class AIWriterBase {
     }
 
     private String fixJson(String jsonString, OutputStream outputStream) {
-        if (jsonString == null || jsonString.isEmpty()) {
-            return jsonString;
+        if (StringUtils.isBlank(jsonString)) {
+            return "{}";
         }
 
-        jsonString = removeThink(jsonString);
         jsonString = removeBackticksAndReplaceColonAndComma(jsonString);
 
         try {
@@ -196,8 +214,31 @@ public class AIWriterBase {
             String fixedJsonString = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt, this.extParams, nullOutputStream);
             fixedJsonString = removeThink(fixedJsonString);
 
+            logger.info("修复后的JSON字符串: {}", fixedJsonString);
+
             return fixedJsonString.trim();
         }
+    }
+
+    /**
+     * 将数字转换为中文
+     * 
+     * @param number 1-99之间的数字
+     * @return 1-99之间的数字对应的中文
+     */
+    protected String numberToChinese(int number) throws IllegalArgumentException {
+        if (number < 1 || number > 99) {
+            throw new IllegalArgumentException("数字必须在1-99之间");
+        }
+        String[] digit = { "零", "一", "二", "三", "四", "五", "六", "七", "八", "九" };
+        if (number < 10) {
+            return digit[number];
+        }
+        int ten = number / 10, rem = number % 10;
+        if (ten == 1) {
+            return (rem == 0 ? "十" : "十" + digit[rem]);
+        }
+        return digit[ten] + "十" + (rem == 0 ? "" : digit[rem]);
     }
 
     /**
@@ -269,10 +310,24 @@ public class AIWriterBase {
         }
         */
         // 去除<think> ... </think> 部分，修复JSON格式
+        result = removeThink(result);
+        
+        // 如果返回结果显示由于长度超限导致被截断，则结合思考过程，重新调用大模型，生成完整结果
+        if (result.contains(">>>finishReason:length<<<")) {
+            String thinkStep = getThink(result);
+            if (StringUtils.isNotBlank(thinkStep)) {
+                logger.info("由于思考过程过长，导致结果被截断为空。结合思考过程，重新调用大模型生成推理分析结果。");
+                String userPrompt = prompt.getJSONObject(1).getString("content");
+                prompt.getJSONObject(0).put("content", this.THINKING_RESULT_PROMPT);
+                prompt.getJSONObject(1).put("content", String.format("【思考过程】：\n%s\n【用户输入】：\n%s\n", thinkStep, userPrompt));
+                result = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt, this.extParams, outputStream);
+                result = removeThink(result);
+            }
+        }
+
+        // 如果需要返回JSON对象，则修复JSON格式
         if (jsonObject) {
             result = fixJson(result, outputStream);
-        } else {
-            result = removeThink(result);
         }
 
         return result;

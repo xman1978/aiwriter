@@ -74,13 +74,12 @@ public class SpliteText extends AIWriterBase {
      * @param removeHeading 是否去除一级、二级、三级标题
      * @param callLlm CallLlm实例，不能为null
      * @param useThink 是否使用思考
-     * @param maxToken 最大Token
      * @param isExchange 是否使用Exchange
      * @throws IllegalArgumentException 如果输入文本为null或过长
      */
     public SpliteText(String text, boolean extractFirstLevelTitle, boolean removeTitle, boolean removeHeading, 
-        XCallLlm callLlm, boolean useThink, int maxToken, boolean isExchange) {
-        super(callLlm, useThink, maxToken, isExchange);
+        XCallLlm callLlm, boolean useThink, boolean isExchange) {
+        super(callLlm, useThink, isExchange);
 
         if (text == null) {
             throw new IllegalArgumentException("输入文本不能为null");
@@ -429,8 +428,8 @@ public class SpliteText extends AIWriterBase {
                     }
                 } else {
                     sb.append(line).append("\n");
-                    if (sb.length() > maxToken * 0.8 || ATTACHMENT_PATTERN.matcher(line).matches()) {
-                        // 如果内容长度超过 maxToken * 0.8，则调用大模型提取局部大纲
+                    if (sb.length() > MAX_INPUT_TOKEN || ATTACHMENT_PATTERN.matcher(line).matches()) {
+                        // 如果内容长度超过 MAX_INPUT_TOKEN，则调用大模型提取局部大纲
                         JSONArray prompt = buildJsonPrompt(EXTRACT_CHUNK_OUTLINE_PROMPT, String.format("\n【文本分块】：\n%s\n", sb.toString()));
                         String chunkOutline = invokeLlm(prompt, outputStream, true, true);
                         logger.info("局部大纲：{}", chunkOutline);
@@ -476,18 +475,28 @@ public class SpliteText extends AIWriterBase {
         }
 
         logger.info("一级标题集合：{}", firstLevelTitleSet.toString());
-    } 
+    }
 
-    private String numberToChinese(int number) {
-        String[] digit = {"零","一","二","三","四","五","六","七","八","九"};
-        if (number < 10) {
-            return digit[number];
+    /**
+     * 判断标题是否在一级标题集合中(忽略标题前的序号)
+     * @param title 标题
+     * @return 是否在一级标题集合中
+     */
+    private boolean isInFirstLevelTitleSet(String title) {
+        if (StringUtils.isBlank(title)) 
+            return false;
+        if (firstLevelTitleSet.isEmpty())
+            return false;
+        for (String firstLevelTitle : firstLevelTitleSet) {
+            String trimmed_title = TAILING_WHITE_SPACE_PATTERN.matcher(title).replaceAll("");
+            trimmed_title = HEADING_WHITE_SPACE_PATTERN.matcher(trimmed_title).replaceAll("");
+            String trimmed_firstLevelTitle = TAILING_WHITE_SPACE_PATTERN.matcher(firstLevelTitle).replaceAll("");
+            trimmed_firstLevelTitle = HEADING_WHITE_SPACE_PATTERN.matcher(trimmed_firstLevelTitle).replaceAll("");
+            if (trimmed_title.endsWith(trimmed_firstLevelTitle)) {
+                return true;
+            }
         }
-        int ten = number / 10, rem = number % 10;
-        if (ten == 1) {
-            return (rem == 0 ? "十" : "十" + digit[rem]);
-        }
-        return digit[ten] + "十" + (rem == 0 ? "" : digit[rem]);
+        return false;
     }
 
     /*
@@ -535,7 +544,7 @@ public class SpliteText extends AIWriterBase {
                     continue;
                 }
 
-                if (firstLevelTitleSet.contains(cleanedLine) && !cleanedLine.equals(chapterTitle)) {
+                if (isInFirstLevelTitleSet(cleanedLine) && !cleanedLine.equals(chapterTitle)) {
                     if (chapterText.length() > 0) {
                         JSONObject jsonObject = new JSONObject();
                         jsonObject.put("index", index);

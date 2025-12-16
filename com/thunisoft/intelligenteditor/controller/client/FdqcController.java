@@ -460,13 +460,13 @@ public class FdqcController extends AIBaseController {
                     && chatParams.getReferences() != null && chatParams.getReferences().size() > 0)  {
                 // xman:协作写作(参考范文全文写作，需要提供参考内容，类型为方案或工作总结)
                 output.flush();
-                CollaborationWriter collaborationWriter = new CollaborationWriter(writerAgentCallLlm, chatParams.isUseThink(), -1, chatParams.isExchange());
+                CollaborationWriter collaborationWriter = new CollaborationWriter(writerAgentCallLlm, chatParams.isUseThink(), chatParams.isExchange());
                 answer_content.append(collaborationWriter.writeArticle(chatParams, output));
                 prompt_content.append("[{\"role\": \"system\", \"content\": \"协作\"},{\"role\": \"user\", \"content\": \"示例\"}]");
             } else if (chatParams.getType().contains(ConstV2.QW) && StringUtils.isBlank(chatParams.getOutline()) && StringUtils.isNotBlank(chatParams.getImitative()) )  {
                 // xman: 仿写优化(参考范文全文写作，需要提供范文，不包括大纲)
                 output.flush();
-                TemplateWriter templateWriter = new TemplateWriter(writerAgentCallLlm, chatParams.isUseThink(), -1, chatParams.isExchange());
+                TemplateWriter templateWriter = new TemplateWriter(writerAgentCallLlm, chatParams.isUseThink(), chatParams.isExchange());
                 answer_content.append(templateWriter.writeArticle(chatParams, output));
                 prompt_content.append("[{\"role\": \"system\", \"content\": \"仿写\"},{\"role\": \"user\", \"content\": \"示例\"}]");
             } else {

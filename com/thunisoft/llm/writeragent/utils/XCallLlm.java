@@ -78,19 +78,17 @@ public class XCallLlm {
     @Value("${chat.llmparams.connectTimeout:30000}")
     private int connectTimeout;
 
-    @Value("${chat.llmparams.MaxTokens:8192}")
-    private int MaxTokens;
-
     // xman: 本地测试用
     /*
     private void initParams(){
         this.debug = false;
         this.modeName = "qwen3:30b-instruct";
-        // this.thinkModeName = "deepseek-v3.1";
-        this.thinkModeName = "Qwen3-Next-80B-Instruct";
+        // this.thinkModeName = "Qwen3-Next-80B-Instruct";
+        this.thinkModeName = "Qwen3-Next-80B-A3B-Thinking";
+        // this.thinkModeName = "DeepSeek-R1";
         this.token = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
         this.thinkToken = "8d6dd05d-8081-4176-86f0-28ddac18d165";
-        this.temperature = 0;
+        this.temperature = 0.1;
         this.top_k = -1;
         this.top_p = 0.9;
         this.presence_penalty = 1;
@@ -104,7 +102,7 @@ public class XCallLlm {
         this.thinkModelType = "common";
         this.baseModelType = "common";
     }
-     */
+    */
     
     private void initParams(){
         chatLlmParams.initParams();
@@ -187,9 +185,8 @@ public class XCallLlm {
         params.put("stream", this.stream);
         if(maxToken > 0){
             params.put("max_tokens", maxToken);
-        } else {
-            params.put("max_tokens", this.MaxTokens);
-        }
+            params.put("max_new_tokens", maxToken);
+        } 
 
         String modelType = "";
         if(extParams.containsKey("model_type")){
@@ -222,6 +219,8 @@ public class XCallLlm {
             // ollama模型支持的参数
             params.put("think", "low");
         }
+
+        logger.debug("构建参数: {}", params.toString());
 
         return params;
     }
@@ -360,7 +359,7 @@ public class XCallLlm {
                         JSONObject object = jsonObject.getJSONArray("choices").getJSONObject(0);
 
                         JSONObject messagesInfo = object.getJSONObject("message");
-                        if(messagesInfo.containsKey("reasoning_content")){
+                        if(messagesInfo.containsKey("reasoning_content") && StringUtils.isNotBlank(messagesInfo.getString("reasoning_content"))){
                             String content = object.getJSONObject("message").getString("reasoning_content");
                             String r = replaceHalfPunc(content);
                             // xman: 区分思考过程和回答
@@ -368,7 +367,7 @@ public class XCallLlm {
                             answer += thinkingContent;
                             outputStream.write(thinkingContent.getBytes(StandardCharsets.UTF_8));
                             outputStream.flush();
-                        } else if (messagesInfo.containsKey("reasoning")) {
+                        } else if (messagesInfo.containsKey("reasoning") && StringUtils.isNotBlank(messagesInfo.getString("reasoning"))) {
                             // xman: 适配 ollama v0.12.6
                             String content = object.getJSONObject("message").getString("reasoning");
                             String r = replaceHalfPunc(content);
@@ -382,12 +381,14 @@ public class XCallLlm {
                         String content = object.getJSONObject("message").getString("content");
                         String r = replaceHalfPunc(content);
                         // xman: 区分思考过程和回答
-                        if (r.contains("</think>") && !r.trim().startsWith("<think>")) {
+                        if (StringUtils.isNotBlank(r) && r.contains("</think>") && !r.trim().startsWith("<think>")) {
                             r = String.format("<think>%s", r);
                         }
                         answer += r;
-                        outputStream.write(r.getBytes(StandardCharsets.UTF_8));
-                        outputStream.flush();
+                        if (StringUtils.isNotBlank(r)) {
+                            outputStream.write(r.getBytes(StandardCharsets.UTF_8));
+                            outputStream.flush();
+                        }
                     } catch(JSONException e) {
                         logger.error("【大模型调用】非流式结果解析异常，解析内容：{}", result, e);
                     } catch (Exception e) {
@@ -668,25 +669,27 @@ public class XCallLlm {
                                             }
                                         }
                                         try {
-                                            boolean is_finished = jsonObject.getBooleanValue("is_finished");
-                                            if(is_finished){
+                                            boolean is_finished = jsonObject.containsKey("is_finished") ? jsonObject.getBooleanValue("is_finished") : false;
+                                            String finishReason = jsonObject.containsKey("finish_reason") ? jsonObject.getString("finish_reason") : "";
+                                            if(is_finished || StringUtils.isNotBlank(finishReason)){
                                                 isStop = true;
-                                                if(debug){
-                                                    logger.info("【大模型】大模型break2");
+                                                // xman: 输出大模型异常结束原因
+                                                if ( StringUtils.isNotBlank(finishReason) && ! StringUtils.equals(finishReason, "stop")){
+                                                    logger.info("【大模型】大模型异常结束输出，结束原因：{}", finishReason);
+                                                    answer += String.format("\n>>>finishReason:%s<<<\n", finishReason);
                                                 }
                                                 if(StringUtils.isNotBlank(preSentence)){
                                                     preSentence = format(preSentence, wpsReplace);
                                                     // xman: 如果只需要输出思考过程，则不输出回答
+                                                    answer += preSentence;
                                                     if(onlyThinking) continue;
                                                     outputStream.write(preSentence.getBytes(StandardCharsets.UTF_8));
                                                     outputStream.flush();
-                                                    answer += preSentence;
                                                 }
                                                 //这里处理最后的行
                                                 reader.close();
                                                 return StringUtils.isNotBlank(thinkStep)? ("<think>\n" + thinkStep + "</think>" + answer) : answer;
                                             }
-
                                         }catch (Exception e){
                                             logger.error("获取参数失败", e);
                                         }
