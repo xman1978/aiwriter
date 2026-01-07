@@ -19,6 +19,8 @@ import org.slf4j.LoggerFactory;
 public class AIWriterBase {
     private static final Logger logger = LoggerFactory.getLogger(AIWriterBase.class);
 
+    private final static String PROMPT_FILE_NAME = "config.yml";
+
     // 模型参数
     protected final int MAX_INPUT_TOKEN;
     protected final int THINKING_BUDGET;
@@ -61,24 +63,23 @@ public class AIWriterBase {
         if (callLlm == null) {
             throw new IllegalArgumentException("CallLlm实例不能为null");
         }
-        PromptConfig.setPromptFileName("config.yml");
-        this.THINKING_BUDGET = Integer.parseInt(PromptConfig.getPromptOrDefault("thinkBudget", "256"));
-        this.MAX_INPUT_TOKEN = Integer.parseInt(PromptConfig.getPromptOrDefault("maxInputToken", "4096"));
-        this.THINKING_ENABLE = Boolean.parseBoolean(PromptConfig.getPromptOrDefault("thinkEnable", "true"));
 
-        this.FIX_JSON_PROMPT = PromptConfig.getPromptOrDefault("fixJsonPrompt", "");
+        this.THINKING_BUDGET = Integer.parseInt(PromptConfig.getPromptOrDefault("thinkBudget", "256", PROMPT_FILE_NAME));
+        this.MAX_INPUT_TOKEN = Integer.parseInt(PromptConfig.getPromptOrDefault("maxInputToken", "4096", PROMPT_FILE_NAME));
+        this.THINKING_ENABLE = Boolean.parseBoolean(PromptConfig.getPromptOrDefault("thinkEnable", "true", PROMPT_FILE_NAME));
 
-        this.THINKING_RESULT_PROMPT = PromptConfig.getPromptOrDefault("thinkingResultPrompt", "");
+        this.FIX_JSON_PROMPT = PromptConfig.getPrompt("fixJsonPrompt", PROMPT_FILE_NAME);
+        this.THINKING_RESULT_PROMPT = PromptConfig.getPrompt("thinkingResultPrompt", PROMPT_FILE_NAME);
 
         this.callLlm = callLlm;
         this.useThink = useThink;
         // -1 表示输出不限制token数，由模型自行决定
-        this.maxToken = Integer.parseInt(PromptConfig.getPromptOrDefault("maxOutputToken", "-1"));; 
+        this.maxToken = Integer.parseInt(PromptConfig.getPromptOrDefault("maxOutputToken", "-1", PROMPT_FILE_NAME));; 
         this.isExchange = isExchange;
         
-        this.modelType = this.useThink ? PromptConfig.getPromptOrDefault("thinkModel", "") : PromptConfig.getPromptOrDefault("baseModel", "");
+        this.modelType = this.useThink ? PromptConfig.getPromptOrDefault("thinkModel", "", PROMPT_FILE_NAME) : PromptConfig.getPromptOrDefault("baseModel", "", PROMPT_FILE_NAME);
 
-        this.waitOutputTime = Integer.parseInt(PromptConfig.getPromptOrDefault("waitOutputTime", "200"));
+        this.waitOutputTime = Integer.parseInt(PromptConfig.getPromptOrDefault("waitOutputTime", "200", PROMPT_FILE_NAME));
 
         this.extParams = new JSONObject();
         this.extParams.put("model_type", this.modelType);

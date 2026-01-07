@@ -32,6 +32,8 @@ public class CollaborationWriter extends AIWriterBase {
 
     private final static String TITLE_SPLIT_MARK = "<<ARTICLE_MARK>>";
 
+    private final static String PROMPT_FILE_NAME = "collaboration.yml";
+
     private final String outlineTemplatePrompt;
     private final String articleTypePrompt;
     private final String modifyTitlePrompt;
@@ -56,16 +58,15 @@ public class CollaborationWriter extends AIWriterBase {
     public CollaborationWriter(XCallLlm callLlm, boolean useThink, boolean isExchange) {
         super(callLlm, useThink, isExchange);
 
-        PromptConfig.setPromptFileName("collaboration.yml");
-        this.chapterWritingPrompt = PromptConfig.getPrompt("chapterWritingPrompt");
-        this.outlineTemplatePrompt = PromptConfig.getPrompt("outlineTemplatePrompt");
-        this.articleTypePrompt = PromptConfig.getPrompt("articleTypePrompt");
-        this.modifyTitlePrompt = PromptConfig.getPrompt("modifyTitlePrompt");
-        this.chapterTemplatePrompt = PromptConfig.getPrompt("chapterTemplatePrompt");
-        this.referenceFilterPrompt = PromptConfig.getPrompt("referenceFilterPrompt");
-        this.refrenceBreakdownPrompt = PromptConfig.getPrompt("refrenceBreakdownPrompt");
-        this.referenceFinalizedPrompt = PromptConfig.getPrompt("referenceFinalizedPrompt");
-        this.chapterStructurePlanPrompt = PromptConfig.getPrompt("chapterStructurePlanPrompt");
+        this.chapterWritingPrompt = PromptConfig.getPrompt("chapterWritingPrompt", PROMPT_FILE_NAME);
+        this.outlineTemplatePrompt = PromptConfig.getPrompt("outlineTemplatePrompt", PROMPT_FILE_NAME);
+        this.articleTypePrompt = PromptConfig.getPrompt("articleTypePrompt", PROMPT_FILE_NAME);
+        this.modifyTitlePrompt = PromptConfig.getPrompt("modifyTitlePrompt", PROMPT_FILE_NAME);
+        this.chapterTemplatePrompt = PromptConfig.getPrompt("chapterTemplatePrompt", PROMPT_FILE_NAME);
+        this.referenceFilterPrompt = PromptConfig.getPrompt("referenceFilterPrompt", PROMPT_FILE_NAME);
+        this.refrenceBreakdownPrompt = PromptConfig.getPrompt("refrenceBreakdownPrompt", PROMPT_FILE_NAME);
+        this.referenceFinalizedPrompt = PromptConfig.getPrompt("referenceFinalizedPrompt", PROMPT_FILE_NAME);
+        this.chapterStructurePlanPrompt = PromptConfig.getPrompt("chapterStructurePlanPrompt", PROMPT_FILE_NAME);
     }
 
     /**
@@ -459,6 +460,8 @@ public class CollaborationWriter extends AIWriterBase {
 
         String content = invokeLlm(prompt, outputStream, false, false);
 
+        logger.info("协同写作：章节《{}》写作内容：{}", title, content);
+
         return content;
     }
 
@@ -678,7 +681,7 @@ public class CollaborationWriter extends AIWriterBase {
                         chapterStructure = planChapterStructure(articleTitle, chapterTemplateJson,
                                 filteredReferenceCollection, writingCause, nullOutputStream);
 
-                        // logger.info("章节结构：{}", chapterStructure);
+                        logger.info("规划章节《{}》的结构：{}", subtitle, chapterStructure);
                     }
 
                     logger.info("处理参考内容");
@@ -780,7 +783,7 @@ public class CollaborationWriter extends AIWriterBase {
     // 本地测试用
     /*
     public static void main(String[] args){
-        CollaborationWriter collaborationWriter = new CollaborationWriter(new XCallLlm(), true, false);
+        CollaborationWriter collaborationWriter = new CollaborationWriter(new XCallLlm(), false, false);
         
         ChatParams chatParams = new ChatParams();
         chatParams.setTitle("OA 产品研发部月度工作总结");

@@ -29,6 +29,8 @@ import java.nio.charset.Charset;
 public class SpliteText extends AIWriterBase {
     private static final Logger logger = LoggerFactory.getLogger(SpliteText.class);
 
+    private final static String PROMPT_FILE_NAME = "splite.yml";
+
     // 常量定义
     private static final int MAX_TEXT_LENGTH = 1000000; // 最大文本长度限制
     private static final String BR_MARKER = "<<BR>>"; // 换行标记
@@ -36,11 +38,9 @@ public class SpliteText extends AIWriterBase {
     private static final String LINE_SEPARATOR = "\n"; // 行分隔符
     private static final Pattern ATTACHMENT_PATTERN = Pattern.compile("^附[件]?[:：]?$");
 
-    static {
-        PromptConfig.setPromptFileName("splite.yml");
-    }
-    private static final String EXTRACT_CHUNK_OUTLINE_PROMPT = PromptConfig.getPrompt("extractChunkOutlinePrompt");
-    private static final String EXTRACT_FIRST_LEVEL_TITLE_PROMPT = PromptConfig.getPrompt("extractFirstLevelTitlePrompt");
+
+    private static final String EXTRACT_CHUNK_OUTLINE_PROMPT = PromptConfig.getPrompt("extractChunkOutlinePrompt", PROMPT_FILE_NAME);
+    private static final String EXTRACT_FIRST_LEVEL_TITLE_PROMPT = PromptConfig.getPrompt("extractFirstLevelTitlePrompt", PROMPT_FILE_NAME);
 
     private String text;
     private boolean removeTitle = true;

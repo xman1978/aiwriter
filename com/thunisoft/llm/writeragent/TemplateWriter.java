@@ -26,6 +26,8 @@ import java.util.Arrays;
 public class TemplateWriter extends AIWriterBase {
     private static final Logger logger = LoggerFactory.getLogger(TemplateWriter.class);
 
+    private final static String PROMPT_FILE_NAME = "template.yml";
+
     // private static final String GW_PATTERN = "^(通知|决定|批复|意见|公告|通报|报告|请示|批复|函|纪要|意见|议案|通告|公报|令)$";
 
     private final String articleTypePrompt;
@@ -49,16 +51,15 @@ public class TemplateWriter extends AIWriterBase {
     public TemplateWriter(XCallLlm callLlm, boolean useThink, boolean isExchange) {
         super(callLlm, useThink, isExchange);
 
-        PromptConfig.setPromptFileName("template.yml");
-        this.refrenceExtractPrompt = PromptConfig.getPrompt("refrenceExtractPrompt");
-        this.chapterWritingPrompt = PromptConfig.getPrompt("chapterWritingPrompt");
-        this.firstFilterPrompt = PromptConfig.getPrompt("firstFilterPrompt");
-        this.chapterTemplatePrompt = PromptConfig.getPrompt("chapterTemplatePrompt");
-        this.articleTypePrompt = PromptConfig.getPrompt("articleTypePrompt");
-        this.modifyTitlePrompt = PromptConfig.getPrompt("modifyTitlePrompt");
-        this.evaluateQualityPrompt = PromptConfig.getPrompt("evaluateQualityPrompt");
+        this.refrenceExtractPrompt = PromptConfig.getPrompt("refrenceExtractPrompt", PROMPT_FILE_NAME);
+        this.chapterWritingPrompt = PromptConfig.getPrompt("chapterWritingPrompt", PROMPT_FILE_NAME);
+        this.firstFilterPrompt = PromptConfig.getPrompt("firstFilterPrompt", PROMPT_FILE_NAME);
+        this.chapterTemplatePrompt = PromptConfig.getPrompt("chapterTemplatePrompt", PROMPT_FILE_NAME);
+        this.articleTypePrompt = PromptConfig.getPrompt("articleTypePrompt", PROMPT_FILE_NAME);
+        this.modifyTitlePrompt = PromptConfig.getPrompt("modifyTitlePrompt", PROMPT_FILE_NAME);
+        this.evaluateQualityPrompt = PromptConfig.getPrompt("evaluateQualityPrompt", PROMPT_FILE_NAME);
 
-        this.optimizeRules = PromptConfig.getPrompt("optimizeRules");
+        this.optimizeRules = PromptConfig.getPrompt("optimizeRules", PROMPT_FILE_NAME);
     }
     
     /**

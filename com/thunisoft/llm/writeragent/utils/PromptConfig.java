@@ -68,13 +68,6 @@ public class PromptConfig {
 
         EXTERNAL_PROMPT_PATH = Paths.get(externalPromptPath);
     }
-
-    // 使用 volatile 确保可见性
-    private static volatile String promptFileName;
-
-    public static void setPromptFileName(String fileName) {
-        promptFileName = fileName;
-    }
     
     /**
      * 获取提示词配置
@@ -83,13 +76,16 @@ public class PromptConfig {
      * @throws IllegalArgumentException 如果提示词名称为空或未找到
      * @throws RuntimeException 如果加载配置失败
      */
-    public static String getPrompt(String promptName) {
+    public static String getPrompt(String promptName, String fileName) {
         if (StringUtils.isBlank(promptName)) {
             throw new IllegalArgumentException("提示词名称不能为空");
         }
         
         try {
-            Map<String, Object> prompt = loadPromptConfig();
+            Map<String, Object> prompt = loadPromptConfig(fileName);
+
+            // logger.info("加载提示词配置: fileName: {}, promptName: {}, prompt: {}", fileName, promptName, prompt);
+
             if (prompt == null || prompt.isEmpty()) {
                 throw new RuntimeException("配置加载失败，提示词配置为空");
             }
@@ -115,17 +111,11 @@ public class PromptConfig {
      * @return 提示词配置Map
      * @throws RuntimeException 如果加载配置失败
      */
-    private static Map<String, Object> loadPromptConfig() throws RuntimeException {
-        // 获取当前文件名，确保线程安全
-        String currentFileName = promptFileName;
-        if (StringUtils.isBlank(currentFileName)) {
-            throw new RuntimeException("promptFileName 未设置");
-        }
-        
+    private static Map<String, Object> loadPromptConfig(String fileName) throws RuntimeException {
         Yaml yaml = new Yaml();
         
         try {
-            Path promptPath = Paths.get(EXTERNAL_PROMPT_PATH.toString(), currentFileName);
+            Path promptPath = Paths.get(EXTERNAL_PROMPT_PATH.toString(), fileName);
 
             // 检查文件是否真的被修改了
             long currentModifiedTime = 0;
@@ -137,13 +127,13 @@ public class PromptConfig {
                 currentModifiedTime = Files.getLastModifiedTime(promptPath).toMillis();
                 
                 // 检查该文件的缓存是否有效
-                CacheEntry cachedEntry = cacheMap.get(currentFileName);
+                CacheEntry cachedEntry = cacheMap.get(fileName);
                 if (cachedEntry != null && currentModifiedTime <= cachedEntry.lastModifiedTime) {
                     return cachedEntry.config;
                 }
             } else {
                 // 对于 JAR 中的资源，检查缓存是否存在
-                CacheEntry cachedEntry = cacheMap.get(currentFileName);
+                CacheEntry cachedEntry = cacheMap.get(fileName);
                 if (cachedEntry != null) {
                     return cachedEntry.config;
                 }
@@ -160,7 +150,7 @@ public class PromptConfig {
             }
             
             // 更新该文件的缓存（线程安全）
-            cacheMap.put(currentFileName, new CacheEntry(newCache, currentModifiedTime));
+            cacheMap.put(fileName, new CacheEntry(newCache, currentModifiedTime));
 
             return newCache;
             
@@ -175,9 +165,9 @@ public class PromptConfig {
      * @param defaultValue 默认值
      * @return 提示词内容或默认值
      */
-    public static String getPromptOrDefault(String promptName, String defaultValue) {
+    public static String getPromptOrDefault(String promptName, String defaultValue, String fileName) {
         try {
-            return getPrompt(promptName);
+            return getPrompt(promptName, fileName);
         } catch (Exception e) {
             logger.warn("获取提示词失败，使用默认值: {} - {}", promptName, e.getMessage());
             return defaultValue;
@@ -187,8 +177,7 @@ public class PromptConfig {
     // 本地测试用
     /*
     public static void main(String[] args) {
-        PromptConfig.setPromptFileName("template.yml");
-        System.out.println(PromptConfig.getPrompt("writerPrompt"));
+        System.out.println(PromptConfig.getPrompt("thinkingResultPrompt", "config.yml"));
     }
     */
 }
