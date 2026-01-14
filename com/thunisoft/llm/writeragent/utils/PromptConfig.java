@@ -51,7 +51,11 @@ public class PromptConfig {
 
             Path promptPath = Paths.get(externalPromptPath);
             if (!IS_RESOURCE_IN_JAR && (!Files.exists(promptPath) || !Files.isDirectory(promptPath))) {
-                throw new RuntimeException("外部配置文件目录不存在: " + externalPromptPath);
+                throw new RuntimeException("外部配置目录不存在: " + externalPromptPath);
+            }
+
+            if (!Files.exists(promptPath.resolve("config.yml")) || !Files.isRegularFile(promptPath.resolve("config.yml"))) {
+                throw new RuntimeException("外部配置文件不存在: " + externalPromptPath + "/config.yml");
             }
 
             IS_RESOURCE_IN_JAR = false;
@@ -62,7 +66,7 @@ public class PromptConfig {
                 externalPromptPath = PromptConfig.class.getPackage().getName().replace(".", "/") + "/../prompt/";
                 IS_RESOURCE_IN_JAR = true;
             } catch (Exception e1) {
-                logger.warn("读取 jar 包中的 prompt 目录失败");
+                logger.warn("读取 jar 包中的 prompt 失败");
             }
         }
 

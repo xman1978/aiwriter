@@ -1439,7 +1439,7 @@ function tableBlockToHtml(text) {
   
     return text.replace(tableBlockRegex, (_, tableContent) => {
       // 删除 --|-- 这样的行
-      tableContent = tableContent.replace(/\|?-+\|-+\|?/g, '');
+      tableContent = tableContent.replace(/\|?(?:-+\|)+(-+)?/g, '');
 
       // console.log("表格文本：" + tableContent);
 
@@ -1454,6 +1454,7 @@ function tableBlockToHtml(text) {
   
       // 表头：第一行
       const columns = lines[0]
+        .replace(/^\|+|\|+$/g, '')
         .split("|")
         .map(col => col.trim());
   
@@ -1466,7 +1467,7 @@ function tableBlockToHtml(text) {
   
       // ===== 解析数据行（从第二行开始）=====
       const rows = lines.slice(1).map(line =>
-        line.split("|").map(cell => cell.trim())
+        line.replace(/^\|+|\|+$/g, '').split("|").map(cell => cell.trim())
       );
   
       // ===== 构建 HTML =====
@@ -1525,9 +1526,7 @@ function escapeHtml(str) {
  */
 function insertWpsTable(doc, text, range) {
     const tableBlockRegex = /<<TABLE>>([\s\S]*?)<<END_TABLE>>/;
-    const match = text.replace(/\|?-+\|-+\|?/g, '').match(tableBlockRegex);
-
-    console.log("表格文本：" + text);
+    const match = text.replace(/\|?(?:-+\|)+(-+)?/g, '').match(tableBlockRegex);
   
     if (!match) {
         return;
@@ -1535,6 +1534,7 @@ function insertWpsTable(doc, text, range) {
 
     // ===== 解析表格文本 =====
     const lines = match[1]
+      .replace(/^\|+|\|+$/g, '')
       .split("\n")
       .map(l => l.trim())
       .filter(Boolean);
@@ -1555,7 +1555,7 @@ function insertWpsTable(doc, text, range) {
   
     // 数据行
     const dataRows = lines.slice(1).map(line =>
-      line.split("|").map(cell => cell.trim())
+      line.replace(/^\|+|\|+$/g, '').split("|").map(cell => cell.trim())
     );
 
     // Artery.alert.warning("表格数据行：" + rowCount + " 列数：" + colCount);
@@ -2193,7 +2193,7 @@ function generateDocument(type, ex, ischangeOutline){
                                     // text = "<<TABLE>>\n{测试1 | 测试2 | 测试3}\n测试4 | 测试5 | 测试6\n测试7 | 测试8 | 测试9\n<<END_TABLE>>\n";
                                     // tableText = text;
                                     if ((tableText.length == 0 && text.indexOf("<<TABLE>>") > -1) || tableText.length > 0) {
-                                        Artery.alert.warning("xman 模型输出内容包含表格 wps ...");
+                                        // Artery.alert.warning("xman 模型输出内容包含表格 wps ...");
                                         if(text.indexOf("<<TABLE>>") > 0){
                                             var beforeText = text.substring(0, text.indexOf("<<TABLE>>"));
                                             if (beforeText.length > 0) {

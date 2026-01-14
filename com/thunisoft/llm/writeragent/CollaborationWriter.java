@@ -417,9 +417,32 @@ public class CollaborationWriter extends AIWriterBase {
                     String.format("\n【参考内容】：\n%s\n", referenceCollection),
                     String.format("\n【内容要求】：\n%s\n", writingCause));
 
-            String result = invokeLlm(prompt, outputStream, true, false);
+            String result = invokeLlm(prompt, outputStream, true, true);
 
-            return result;
+            JSONObject jsonObject = JSON.parseObject(result);
+            if (jsonObject.containsKey("structure_type") && jsonObject.containsKey("units")) {
+                if (writingTemplate.getString("title").equals("引言")) {
+                    // 引言章节，只有一个段落
+                    jsonObject.put("structure_type", "single");
+                    JSONObject unit = jsonObject.getJSONArray("units").getJSONObject(0);
+                    // 引言章节，不允许使用表格
+                    unit.put("allowed_table", false);
+                    JSONArray unitsArray = new JSONArray();
+                    unitsArray.add(unit);
+                    jsonObject.put("units", unitsArray);
+                }
+
+                if (jsonObject.getString("structure_type").equals("single")) {
+                    JSONArray units = jsonObject.getJSONArray("units");
+                    // 章节中只有一个段落，title 为空
+                    units.getJSONObject(0).put("title", "");
+                    jsonObject.put("units", units);
+                }
+
+                return jsonObject.toJSONString();
+            } else {
+                throw new RuntimeException("规划章节结构为空: " + result);
+            }
         } catch (Exception e) {
             throw new RuntimeException("规划章节结构失败: " + e.getMessage(), e);
         }
@@ -441,7 +464,7 @@ public class CollaborationWriter extends AIWriterBase {
             JSONArray referenceCollection, String writingCause, int wordsLimit, OutputStream outputStream) {
         String templateTitle = writingTemplate.getString("title");
         if ("引言".equals(templateTitle)) {
-            writingCause = String.format("%s\n%s", "引言要求：开篇点题，背景+论点，一个自然段，无二级和三级标题，≤250字。\n", writingCause);
+            writingCause = String.format("%s\n%s", "引言部分的写作要求：开篇点题，背景+论点，一个自然段，无二级和三级标题，≤250字。\n", writingCause);
             wordsLimit = -1;
         }
 
@@ -451,11 +474,11 @@ public class CollaborationWriter extends AIWriterBase {
         }
 
         JSONArray prompt = buildJsonPrompt(this.chapterWritingPrompt,
+                String.format("\n【内容要求】：\n%s\n", writingCause),
                 String.format("\n【文章标题】：\n%s\n", title),
                 String.format("\n【章节框架】：\n%s\n", writingTemplate),
                 String.format("\n【章节结构】：\n%s\n", chapterStructure),
                 String.format("\n【参考内容】：\n%s\n", referenceCollection.isEmpty() ? "" : referenceCollection.toJSONString()),
-                String.format("\n【内容要求】：\n%s\n", writingCause),
                 wordsLimitPrompt);
 
         String content = invokeLlm(prompt, outputStream, false, false);
@@ -578,7 +601,7 @@ public class CollaborationWriter extends AIWriterBase {
                         chapterStructure = planChapterStructure(articleTitle, writingTemplateJson,
                                 filteredReferenceCollection, writingCause, nullOutputStream);
 
-                        logger.debug("章节结构：{}", chapterStructure);
+                        logger.info("规划章节《{}》的结构：{}", subtitle, chapterStructure);
                     }
 
                     logger.info("处理参考内容");

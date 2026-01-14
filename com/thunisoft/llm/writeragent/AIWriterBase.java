@@ -363,7 +363,7 @@ public class AIWriterBase {
             Thread.sleep(this.waitOutputTime); 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException("写入输出流失败: " + e.getMessage(), e);
         }
     }
