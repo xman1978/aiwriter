@@ -7,6 +7,11 @@ import org.apache.commons.lang3.StringUtils;
 import java.io.OutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
@@ -54,8 +59,9 @@ public class AIWriterBase {
 
     /**
      * 构造函数
-     * @param callLlm CallLlm实例，不能为null
-     * @param useThink 是否使用思考模式
+     * 
+     * @param callLlm    CallLlm实例，不能为null
+     * @param useThink   是否使用思考模式
      * @param isExchange 是否交换模式
      * @throws IllegalArgumentException 如果参数无效
      */
@@ -64,9 +70,12 @@ public class AIWriterBase {
             throw new IllegalArgumentException("CallLlm实例不能为null");
         }
 
-        this.THINKING_BUDGET = Integer.parseInt(PromptConfig.getPromptOrDefault("thinkBudget", "256", PROMPT_FILE_NAME));
-        this.MAX_INPUT_TOKEN = Integer.parseInt(PromptConfig.getPromptOrDefault("maxInputToken", "4096", PROMPT_FILE_NAME));
-        this.THINKING_ENABLE = Boolean.parseBoolean(PromptConfig.getPromptOrDefault("thinkEnable", "true", PROMPT_FILE_NAME));
+        this.THINKING_BUDGET = Integer
+                .parseInt(PromptConfig.getPromptOrDefault("thinkBudget", "256", PROMPT_FILE_NAME));
+        this.MAX_INPUT_TOKEN = Integer
+                .parseInt(PromptConfig.getPromptOrDefault("maxInputToken", "4096", PROMPT_FILE_NAME));
+        this.THINKING_ENABLE = Boolean
+                .parseBoolean(PromptConfig.getPromptOrDefault("thinkEnable", "true", PROMPT_FILE_NAME));
 
         this.FIX_JSON_PROMPT = PromptConfig.getPrompt("fixJsonPrompt", PROMPT_FILE_NAME);
         this.THINKING_RESULT_PROMPT = PromptConfig.getPrompt("thinkingResultPrompt", PROMPT_FILE_NAME);
@@ -74,12 +83,15 @@ public class AIWriterBase {
         this.callLlm = callLlm;
         this.useThink = useThink;
         // -1 表示输出不限制token数，由模型自行决定
-        this.maxToken = Integer.parseInt(PromptConfig.getPromptOrDefault("maxOutputToken", "-1", PROMPT_FILE_NAME));; 
+        this.maxToken = Integer.parseInt(PromptConfig.getPromptOrDefault("maxOutputToken", "-1", PROMPT_FILE_NAME));
+        ;
         this.isExchange = isExchange;
-        
-        this.modelType = this.useThink ? PromptConfig.getPromptOrDefault("thinkModel", "", PROMPT_FILE_NAME) : PromptConfig.getPromptOrDefault("baseModel", "", PROMPT_FILE_NAME);
 
-        this.waitOutputTime = Integer.parseInt(PromptConfig.getPromptOrDefault("waitOutputTime", "200", PROMPT_FILE_NAME));
+        this.modelType = this.useThink ? PromptConfig.getPromptOrDefault("thinkModel", "", PROMPT_FILE_NAME)
+                : PromptConfig.getPromptOrDefault("baseModel", "", PROMPT_FILE_NAME);
+
+        this.waitOutputTime = Integer
+                .parseInt(PromptConfig.getPromptOrDefault("waitOutputTime", "200", PROMPT_FILE_NAME));
 
         this.extParams = new JSONObject();
         this.extParams.put("model_type", this.modelType);
@@ -87,24 +99,29 @@ public class AIWriterBase {
             this.extParams.put("thinking_budget", this.THINKING_BUDGET);
         }
         this.extParams.put("enable_thinking", this.THINKING_ENABLE);
+
     }
 
     /*
      * 去除 <think> ... </think> 部分，如果有的话
+     * 
      * @param content 模型输出的内容
+     * 
      * @return 去除 <think> ... </think> 部分后的内容
      */
     private String removeThink(String content) {
         if (StringUtils.isBlank(content)) {
             return "";
         }
-        
+
         return THINK_PATTERN.matcher(content).replaceAll("");
     }
 
     /*
      * 获取思考过程
+     * 
      * @param content 模型输出的内容
+     * 
      * @return 思考过程
      */
     private String getThink(String content) {
@@ -123,8 +140,11 @@ public class AIWriterBase {
 
     /*
      * 去除 ```json 和 ```，将中文冒号、逗号替换为英文冒号、逗号，去除前后空格和换行符，如果开头是 { 或 [，则添加 } 或 ]
+     * 
      * @param jsonString JSON 字符串
-     * @return 去除 ```json 和 ```，将中文冒号、逗号替换为英文冒号、逗号，去除前后空格和换行符，如果开头是 { 或 [，则添加 } 或 ]后的 JSON 字符串
+     * 
+     * @return 去除 ```json 和 ```，将中文冒号、逗号替换为英文冒号、逗号，去除前后空格和换行符，如果开头是 { 或 [，则添加 } 或
+     * ]后的 JSON 字符串
      */
     private String removeBackticksAndReplaceColonAndComma(String jsonString) {
         if (jsonString == null || jsonString.isEmpty()) {
@@ -132,7 +152,7 @@ public class AIWriterBase {
         }
 
         StringBuffer sb = new StringBuffer(jsonString);
-        
+
         // 去除 ```json 和 ```
         int jsonIndex;
         while ((jsonIndex = sb.indexOf("```json")) != -1) {
@@ -141,7 +161,7 @@ public class AIWriterBase {
         while ((jsonIndex = sb.indexOf("```")) != -1) {
             sb.delete(jsonIndex, jsonIndex + 3);
         }
-        
+
         // 将中文冒号、逗号替换为英文冒号、逗号
         for (int i = 0; i < sb.length(); i++) {
             char c = sb.charAt(i);
@@ -151,7 +171,7 @@ public class AIWriterBase {
                 sb.setCharAt(i, ',');
             }
         }
-        
+
         // 去除前后空格和换行符
         Matcher leadingMatcher = LEADING_WHITESPACE_PATTERN.matcher(sb);
         if (leadingMatcher.find()) {
@@ -212,7 +232,8 @@ public class AIWriterBase {
 
             extParams.put("response_format", "json_object");
             extParams.put("only_thinking", true);
-            String fixedJsonString = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt, this.extParams, nullOutputStream);
+            String fixedJsonString = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange,
+                    prompt, this.extParams, nullOutputStream);
             fixedJsonString = removeThink(fixedJsonString);
 
             logger.info("修复后的JSON字符串: {}", fixedJsonString);
@@ -244,20 +265,21 @@ public class AIWriterBase {
 
     /**
      * 生成 JSON 格式提示词
+     * 
      * @param promptContent 系统提示词内容
-     * @param content 用户输入内容
+     * @param content       用户输入内容
      * @return JSON 格式提示词
      */
-    protected JSONArray buildJsonPrompt(String promptContent, String... content) 
-        throws IllegalArgumentException {
+    protected JSONArray buildJsonPrompt(String promptContent, String... content)
+            throws IllegalArgumentException {
         if (StringUtils.isBlank(promptContent)) {
             throw new IllegalArgumentException("系统提示词不能为空");
         }
-        
+
         if (content == null || content.length == 0) {
             throw new IllegalArgumentException("用户内容不能为空");
         }
-        
+
         JSONArray prompt = new JSONArray();
 
         // 构建系统消息
@@ -276,11 +298,11 @@ public class AIWriterBase {
                 userContent.append(item);
             }
         }
-        
+
         if (userContent.length() == 0) {
             throw new IllegalArgumentException("用户内容不能为空");
         }
-        
+
         user.put("content", userContent.toString());
         prompt.add(user);
 
@@ -289,30 +311,34 @@ public class AIWriterBase {
 
     /**
      * 调用大模型
-     * @param prompt 提示词
+     * 
+     * @param prompt       提示词
      * @param outputStream 输出流
      * @param onlyThinking 是否只输出思考过程
-     * @param jsonObject 是否返回JSON对象
+     * @param jsonObject   是否返回JSON对象
      * @return 大模型返回的结果
      */
-    protected String invokeLlm(JSONArray prompt, OutputStream outputStream, boolean onlyThinking, boolean jsonObject) 
-        throws RuntimeException {
+    protected String invokeLlm(JSONArray prompt, OutputStream outputStream, boolean onlyThinking, boolean jsonObject)
+            throws RuntimeException {
+
         if (jsonObject) {
             this.extParams.put("response_format", "json_object");
         }
         this.extParams.put("only_thinking", onlyThinking);
-        String result = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt, this.extParams, outputStream);
+        String result = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt,
+                this.extParams, outputStream);
         if (StringUtils.isBlank(result) || result.contains("努力思考中！请稍后提问...")) {
             throw new RuntimeException("大模型返回的结果为空");
         }
+
         /*
-        if (prompt.toString().contains("信息筛选助手")) {
-            logger.info("大模型返回的结果: {}", result);
-        }
-        */
+         * if (prompt.toString().contains("信息筛选助手")) {
+         * logger.info("大模型返回的结果: {}", result);
+         * }
+         */
         // 去除<think> ... </think> 部分，修复JSON格式
         result = removeThink(result);
-        
+
         // 如果返回结果显示由于长度超限导致被截断，则结合思考过程，重新调用大模型，生成完整结果
         if (result.contains(">>>finishReason:length<<<")) {
             String thinkStep = getThink(result);
@@ -320,8 +346,10 @@ public class AIWriterBase {
                 logger.info("由于思考过程过长，导致结果被截断为空。结合思考过程，重新调用大模型生成推理分析结果。");
                 String userPrompt = prompt.getJSONObject(1).getString("content");
                 prompt.getJSONObject(0).put("content", this.THINKING_RESULT_PROMPT);
-                prompt.getJSONObject(1).put("content", String.format("【思考过程】：\n%s\n【用户输入】：\n%s\n", thinkStep, userPrompt));
-                result = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt, this.extParams, outputStream);
+                prompt.getJSONObject(1).put("content",
+                        String.format("【思考过程】：\n%s\n【用户输入】：\n%s\n", thinkStep, userPrompt));
+                result = this.callLlm.callOpenAiInterface(this.useThink, this.maxToken, this.isExchange, prompt,
+                        this.extParams, outputStream);
                 result = removeThink(result);
             }
         }
@@ -332,35 +360,37 @@ public class AIWriterBase {
         }
 
         return result;
+
     }
 
     /**
      * 安全写入输出流
+     * 
      * @param outputStream 输出流
-     * @param content 要写入的内容
-     * @param isThink 是否按思考过程输出
+     * @param content      要写入的内容
+     * @param isThink      是否按思考过程输出
      */
     protected void safeWriteToStream(OutputStream outputStream, String content, boolean isThink) {
         if (outputStream == null || StringUtils.isBlank(content)) {
             logger.warn("输出流为空或内容为空，跳过写入");
             return;
         }
-        
+
         try {
             // 等待 IO 缓冲区刷新
-            Thread.sleep(this.waitOutputTime); 
+            Thread.sleep(this.waitOutputTime);
             // 分块写入输出流，避免写入过长的内容导致输出流阻塞（慢速网络情况下）
-            for(int i = 0; i < content.length() / 3 + 1; i++){
+            for (int i = 0; i < content.length() / 3 + 1; i++) {
                 String chunk = content.substring(i * 3, Math.min((i * 3 + 3), content.length()));
-                if(isThink){
+                if (isThink) {
                     outputStream.write(("<think>" + chunk + "</think>").getBytes(StandardCharsets.UTF_8));
-                }else{
+                } else {
                     outputStream.write(chunk.getBytes(StandardCharsets.UTF_8));
                 }
                 outputStream.flush();
             }
             // 等待 IO 缓冲区刷新
-            Thread.sleep(this.waitOutputTime); 
+            Thread.sleep(this.waitOutputTime);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {

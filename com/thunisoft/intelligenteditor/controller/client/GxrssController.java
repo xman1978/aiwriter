@@ -36,6 +36,9 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.thunisoft.llm.writeragent.CondenseWriter;
+import com.thunisoft.llm.writeragent.utils.XCallLlm;
+
 @Controller
 @RequestMapping({"client/gxrss"})
 public class GxrssController {
@@ -49,6 +52,9 @@ public class GxrssController {
   
   @Autowired
   private ICallLlm callLlm;
+  
+  @Autowired
+  private XCallLlm xCallLlm;
   
   @Autowired
   private ChatLlmParams chatLlmParams;
@@ -103,18 +109,31 @@ public class GxrssController {
     response.setHeader("Content-Type", "text/html; charset=UTF-8");
     response.setHeader("Transfer-Encoding", "chunked");
     try (ServletOutputStream servletOutputStream = response.getOutputStream()) {
+      AtomicReference<String> res = new AtomicReference<>("");
       Answer answer = new Answer();
       JSONObject inputParams = this.promptService.buildGxRsPrompt(gxRsParam);
-      AtomicReference<String> res = new AtomicReference<>("");
-      if (isRecommend(gxRsParam)) {
-        res.set(this.promptService.recomadTj(gxRsParam, inputParams, (OutputStream)servletOutputStream));
+      if (params.containsKey("isSelected") && params.getBoolean("isSelected")) {
+        if (isRecommend(gxRsParam)) {
+          res.set(this.promptService.recomadTj(gxRsParam, inputParams, (OutputStream)servletOutputStream));
+        } else {
+          res.set(this.promptService.recomadQt(gxRsParam, inputParams, (OutputStream)servletOutputStream));
+        } 
       } else {
-        res.set(this.promptService.recomadQt(gxRsParam, inputParams, (OutputStream)servletOutputStream));
-      } 
+        // xman: 精简/总结文章内容
+        CondenseWriter condenseWriter = new CondenseWriter(this.xCallLlm, gxRsParam.isUseThink(), gxRsParam.isExchange());
+        if (gxRsParam.getProcessType().equals(TextProcessType.COMPRESS_SUMMARY)) {
+          res.set(condenseWriter.summarizeText(gxRsParam.getSentence(), (OutputStream)servletOutputStream));
+        } else if (gxRsParam.getProcessType().equals(TextProcessType.COMPRESS_SIMPLIFY)) {
+          res.set(condenseWriter.condenseText(gxRsParam.getSentence(), gxRsParam.getLengthSize(), (OutputStream)servletOutputStream));
+        } else {
+          throw new IllegalArgumentException("无效的精简/总结类型: " + gxRsParam.getProcessType().getValue());
+        }
+      }
+
       answer.setAnswer(res.get());
       answer.setQuestion(JSONObject.toJSONString(inputParams.getJSONArray("messages")));
       answer.setPrompt(JSONObject.toJSONString(inputParams.getJSONArray("messages")));
-      this.gxrsCommonService.saveGxRecordInfo(answer, userInfo, gxRsParam);
+      this.gxrsCommonService.saveGxRecordInfo(answer, userInfo, gxRsParam);        
       Map<String, Object> ext = new HashMap<>();
       ext.put("answer", res.get());
       this.auditLogService.saveAuditLog("改写润色", gxRsParam.getProcessType().getValue(), gxRsParam.getSentence(), "成功", ext);

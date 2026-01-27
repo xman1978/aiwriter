@@ -80,13 +80,14 @@ public class XCallLlm {
 
     // xman: 本地测试用
     /*
-    private void initParams(){
+    private void initParams() {
         this.debug = false;
-        this.modeName = "qwen3:30b-instruct";
-        this.thinkModeName = "Qwen3-Next-80B-Instruct";
-        // this.thinkModeName = "Qwen3-Next-80B-A3B-Thinking";
+        // this.modeName = "qwen3:30b-instruct";
+        this.modeName = "Qwen3-Next-80B-Instruct";
+        // this.thinkModeName = "Qwen3-Next-80B-Instruct";
+        this.thinkModeName = "Qwen3-Next-80B-A3B-Thinking";
         // this.thinkModeName = "DeepSeek-R1";
-        this.token = "sk-7b7e0e6749d14e8b83381e0b8ac809e5";
+        this.token = "8d6dd05d-8081-4176-86f0-28ddac18d165";
         this.thinkToken = "8d6dd05d-8081-4176-86f0-28ddac18d165";
         this.temperature = 0.1;
         this.top_k = -1;
@@ -96,14 +97,15 @@ public class XCallLlm {
         this.stream = true;
         this.contianThinkLable = false;
         this.forceThink = false;
-        this.url = "http://192.168.0.158:11434/v1/chat/completions";
+        // this.url = "http://192.168.0.158:11434/v1/chat/completions";
+        this.url = "https://llm.thunisoft.com/v1/chat/completions";
         this.thinkUrl = "https://llm.thunisoft.com/v1/chat/completions";
         this.replaceEnable = false;
         this.thinkModelType = "common";
         this.baseModelType = "common";
     }
     */
-    
+
     private void initParams(){
         chatLlmParams.initParams();
         this.debug = chatLlmParams.getDebug();
@@ -132,76 +134,80 @@ public class XCallLlm {
     private List<ReplaceWord> wpsReplace = new ArrayList<>();
     private ReplaceWords replaceWords = new ReplaceWords();
 
-    public void initializeData(){
+    public void initializeData() {
         replaceWords.clearAllReplaceWords();
         replaceWords.addAllReplaceWords(replaceWordService.selectAll());
     }
 
     /**
      * 构建参数
+     * 
      * @param messages
      * @param maxToken
      * @return
      */
-    private JSONObject buildParams(JSONArray messages, int maxToken, boolean isExchage, boolean useThink, JSONObject extParams){
+    private JSONObject buildParams(JSONArray messages, int maxToken, boolean isExchage, boolean useThink,
+            JSONObject extParams) {
         JSONObject ext = new JSONObject();
-        if(messages.size() == 3 && messages.getJSONObject(2).containsKey("name") && messages.getJSONObject(2).getString("name").equals("ext")){
+        if (messages.size() == 3 && messages.getJSONObject(2).containsKey("name")
+                && messages.getJSONObject(2).getString("name").equals("ext")) {
             ext = messages.getJSONObject(2);
             messages.remove(2);
         }
 
         JSONObject think = new JSONObject();
-        if(StringUtils.equals(this.thinkModelType, "ds3.1") && useThink){
+        if (StringUtils.equals(this.thinkModelType, "ds3.1") && useThink) {
             think.put("type", "enabled");
         }
-        if(StringUtils.equals(this.baseModelType, "ds3.1") && !useThink){
+        if (StringUtils.equals(this.baseModelType, "ds3.1") && !useThink) {
             think.put("type", "disabled");
         }
 
         JSONArray msgs = formatMessage(messages, useThink);
         JSONObject params = new JSONObject();
         params.put("messages", msgs);
-        if(think.keySet().size() > 0){
+        if (think.keySet().size() > 0) {
             params.put("thinking", think);
         }
-        params.put("model", useThink? this.thinkModeName: this.modeName);
-        params.put("temperature", isExchage? 0.9: this.temperature);
+        params.put("model", useThink ? this.thinkModeName : this.modeName);
+        params.put("temperature", isExchage ? 0.9 : this.temperature);
         params.put("top_p", this.top_p);
-        if(ext.keySet().size() > 1){
+        if (ext.keySet().size() > 1) {
             // 遍历一下并赋值
             ext.remove("name");
-            //            params.put("extra_body", ext);
-            for(String key : ext.keySet()){
+            // params.put("extra_body", ext);
+            for (String key : ext.keySet()) {
                 params.put(key, ext.get(key));
             }
         }
-        if(this.top_k != -1){
+        if (this.top_k != -1) {
             params.put("top_k", this.top_k);
         }
-        if(this.presence_penalty != -10){
+        if (this.presence_penalty != -10) {
             params.put("presence_penalty", this.presence_penalty);
         }
         params.put("repetition_penalty", this.repetition_penalty);
         params.put("stream", this.stream);
-        if(maxToken > 0){
+        if (maxToken > 0) {
             params.put("max_tokens", maxToken);
             params.put("max_new_tokens", maxToken);
-        } 
+        }
 
         String modelType = "";
-        if(extParams.containsKey("model_type")){
+        if (extParams.containsKey("model_type")) {
             modelType = extParams.getString("model_type");
         }
         // xman: 如果模型是glm-4，则设置response_format 为 json_object 才能正确的输出json格式
-        if(extParams.containsKey("response_format") && modelType.matches("^(glm4|qwen3)$")){
+        if (extParams.containsKey("response_format") && modelType.matches("^(glm4|qwen3)$")) {
             String responseFormat = extParams.getString("response_format");
-            if(StringUtils.isBlank(responseFormat) || (!responseFormat.equals("json_object") && !responseFormat.equals("text"))){
+            if (StringUtils.isBlank(responseFormat)
+                    || (!responseFormat.equals("json_object") && !responseFormat.equals("text"))) {
                 responseFormat = "text";
             }
             params.put("response_format", new JSONObject().put("type", responseFormat));
         }
         // xman: qwen3 是否开启思考模式
-        if(useThink && extParams.containsKey("enable_thinking") && modelType.matches("^qwen3$")) {
+        if (useThink && extParams.containsKey("enable_thinking") && modelType.matches("^qwen3$")) {
             boolean enableThinking = extParams.getBooleanValue("enable_thinking");
             // 阿里云模型支持的参数
             params.put("enable_thinking", enableThinking);
@@ -213,7 +219,7 @@ public class XCallLlm {
             params.put("think", enableThinking ? 1 : 0);
         }
         // xman: qwen3 可以限制思考长度
-        if(useThink && extParams.containsKey("thinking_budget") && modelType.matches("^qwen3$")){
+        if (useThink && extParams.containsKey("thinking_budget") && modelType.matches("^qwen3$")) {
             // 阿里云模型支持的参数
             params.put("thinking_budget", extParams.getInteger("thinking_budget"));
             // ollama模型支持的参数
@@ -248,15 +254,17 @@ public class XCallLlm {
                 newMessages.add(newMsg);
             }
             // xman: 如果使用融合模型，则需要在消息中添加/think或/no_think
-            if(i == 0 && (StringUtils.equals(thinkModelType, "fusionModel") || StringUtils.equals(baseModelType, "fusionModel"))){
-                content = newMessages.getJSONObject(i).getString("content") + (useThink? "/think":"/no_think");
+            if (i == 0 && (StringUtils.equals(thinkModelType, "fusionModel")
+                    || StringUtils.equals(baseModelType, "fusionModel"))) {
+                content = newMessages.getJSONObject(i).getString("content") + (useThink ? "/think" : "/no_think");
                 newMessages.getJSONObject(i).put("content", content);
             }
         }
         return newMessages;
     }
 
-    public String callOpenAiInterface(boolean useThink, int maxToken, boolean isExchange, JSONArray messages, JSONObject extParams, OutputStream outputStream) {
+    public String callOpenAiInterface(boolean useThink, int maxToken, boolean isExchange, JSONArray messages,
+            JSONObject extParams, OutputStream outputStream) {
         initParams();
         String answer = "";
         String thinkStep = "";
@@ -269,39 +277,39 @@ public class XCallLlm {
         boolean thinking = false;
         boolean isStop = false;
         boolean allToThink = false;
-        if(extParams.containsKey("allToThink")){
+        if (extParams.containsKey("allToThink")) {
             allToThink = extParams.getBooleanValue("allToThink");
         }
-        
+
         // xman: 如果只是给内部程序使用，则只需要输出思考过程到用户界面，不输出回答到用户界面
         boolean onlyThinking = false;
-        if(extParams.containsKey("only_thinking")){
+        if (extParams.containsKey("only_thinking")) {
             onlyThinking = extParams.getBooleanValue("only_thinking");
         }
         // 开始调用
         try {
             // 创建信任所有证书的 TrustManager
-            TrustManager[] trustAllCerts = new TrustManager[]{
-                new X509TrustManager() {
-                    @Override
-                    public void checkClientTrusted(X509Certificate[] chain, String authType) {
-                    }
+            TrustManager[] trustAllCerts = new TrustManager[] {
+                    new X509TrustManager() {
+                        @Override
+                        public void checkClientTrusted(X509Certificate[] chain, String authType) {
+                        }
 
-                    @Override
-                    public void checkServerTrusted(X509Certificate[] chain, String authType) {
-                    }
+                        @Override
+                        public void checkServerTrusted(X509Certificate[] chain, String authType) {
+                        }
 
-                    @Override
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return new X509Certificate[]{};
+                        @Override
+                        public X509Certificate[] getAcceptedIssuers() {
+                            return new X509Certificate[] {};
+                        }
                     }
-                }
             };
-            
+
             // 创建 SSLContext
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-            
+
             // 创建 OkHttpClient
             OkHttpClient httpclient = new OkHttpClient.Builder()
                     .sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
@@ -310,40 +318,40 @@ public class XCallLlm {
                     .readTimeout(socketTimeout, TimeUnit.MILLISECONDS)
                     .writeTimeout(socketTimeout, TimeUnit.MILLISECONDS)
                     .build();
-            
+
             String jsonString = params.toString();
             MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
             RequestBody requestBody = RequestBody.create(jsonString, mediaType);
-            
+
             Request.Builder requestBuilder = new Request.Builder()
                     .url(url)
                     .post(requestBody)
                     .addHeader("Content-Type", "application/json;charset=utf-8")
-                    .addHeader("Authorization", "Bearer " + (useThink? this.thinkToken: this.token))
-                    .addHeader("appkey", (useThink? this.thinkToken: this.token))
-                    .addHeader("X-Mt-Authorization", (useThink? this.thinkToken: this.token));
-            
-            if(jwLoginEnabled){
+                    .addHeader("Authorization", "Bearer " + (useThink ? this.thinkToken : this.token))
+                    .addHeader("appkey", (useThink ? this.thinkToken : this.token))
+                    .addHeader("X-Mt-Authorization", (useThink ? this.thinkToken : this.token));
+
+            if (jwLoginEnabled) {
                 String userid = sessionUtil.getUserid();
-                String token= sessionUtil.getToken();
+                String token = sessionUtil.getToken();
                 requestBuilder.addHeader("User-Id", userid);
                 requestBuilder.addHeader("Token", token);
             }
-            
+
             Request request = requestBuilder.build();
-            
-            if(debug){
+
+            if (debug) {
                 logger.info("message = {}", messages);
             }
-            
+
             try (Response httpResponse = httpclient.newCall(request).execute()) {
                 int statusCode = httpResponse.code();
-                if(statusCode != 200){
+                if (statusCode != 200) {
                     String err = httpResponse.body() != null ? httpResponse.body().string() : "";
                     logger.error("调用大模型失败，HTTP 状态码={}, body={}", statusCode, err);
                     return "";
                 }
-                
+
                 if (httpResponse.body() == null) {
                     logger.error("调用大模型失败，响应体为空");
                     return "";
@@ -359,7 +367,8 @@ public class XCallLlm {
                         JSONObject object = jsonObject.getJSONArray("choices").getJSONObject(0);
 
                         JSONObject messagesInfo = object.getJSONObject("message");
-                        if(messagesInfo.containsKey("reasoning_content") && StringUtils.isNotBlank(messagesInfo.getString("reasoning_content"))){
+                        if (messagesInfo.containsKey("reasoning_content")
+                                && StringUtils.isNotBlank(messagesInfo.getString("reasoning_content"))) {
                             String content = object.getJSONObject("message").getString("reasoning_content");
                             String r = replaceHalfPunc(content);
                             // xman: 区分思考过程和回答
@@ -367,7 +376,8 @@ public class XCallLlm {
                             answer += thinkingContent;
                             outputStream.write(thinkingContent.getBytes(StandardCharsets.UTF_8));
                             outputStream.flush();
-                        } else if (messagesInfo.containsKey("reasoning") && StringUtils.isNotBlank(messagesInfo.getString("reasoning"))) {
+                        } else if (messagesInfo.containsKey("reasoning")
+                                && StringUtils.isNotBlank(messagesInfo.getString("reasoning"))) {
                             // xman: 适配 ollama v0.12.6
                             String content = object.getJSONObject("message").getString("reasoning");
                             String r = replaceHalfPunc(content);
@@ -389,81 +399,88 @@ public class XCallLlm {
                             outputStream.write(r.getBytes(StandardCharsets.UTF_8));
                             outputStream.flush();
                         }
-                    } catch(JSONException e) {
+                    } catch (JSONException e) {
                         logger.error("【大模型调用】非流式结果解析异常，解析内容：{}", result, e);
                     } catch (Exception e) {
-                        logger.error("【大模型调用】非流式结果调用异常，模型名称是{}", useThink? thinkModeName: modeName, e);
+                        logger.error("【大模型调用】非流式结果调用异常，模型名称是{}", useThink ? thinkModeName : modeName, e);
                     }
                 } else {
                     // 流式输出
                     boolean isFirstOutput = true;
-                    InputStreamReader reader = new InputStreamReader(httpResponse.body().byteStream(), StandardCharsets.UTF_8);
+                    InputStreamReader reader = new InputStreamReader(httpResponse.body().byteStream(),
+                            StandardCharsets.UTF_8);
                     char[] buff = new char[2048];
                     int length = 0;
                     String prestr = "";
                     String preSentence = "";
 
-                    String temp = "";           // 临时字符串，用于处理中断问题
+                    StringBuffer temp = new StringBuffer(); // 临时字符串，用于处理中断问题
                     while ((length = reader.read(buff)) != -1) {
-                        if(debug){
+                        if (debug) {
                             logger.info("【大模型调用-debug】 从接口接收到句子长度是：{}", length);
                         }
-                        if(isStop){
-                            if(debug){
+                        if (isStop) {
+                            if (debug) {
                                 logger.info("【大模型调用-debug】 执行break");
                             }
                             break;
                         }
-                        if(fixedSizeQueue.isSame()){
+                        if (fixedSizeQueue.isSame()) {
                             logger.error("模型开始不停的重复输出，输出的内容为{}，break", fixedSizeQueue);
                             break;
                         }
 
                         String resultPre = new String(buff, 0, length).replace("data: [DONE]", "");
-                        if(StringUtils.contains(resultPre, "event:message") && StringUtils.contains(resultPre, "id:")){
+                        if (StringUtils.contains(resultPre, "event:message")
+                                && StringUtils.contains(resultPre, "id:")) {
                             String[] arrays = resultPre.split("\n");
                             resultPre = "";
                             for (String array : arrays) {
-                                if(!StringUtils.startsWith(array, "event:") && !StringUtils.startsWith(array, "id:") && StringUtils.startsWith(array, "data:")){
+                                if (!StringUtils.startsWith(array, "event:") && !StringUtils.startsWith(array, "id:")
+                                        && StringUtils.startsWith(array, "data:")) {
                                     resultPre += (array + "\n");
                                 }
                             }
                         }
-                        if(debug){
+                        if (debug) {
                             logger.info("【大模型调用-debug】 当前输出的句子是：{}", resultPre);
                         }
-                        // 处理中断问题：如果数据不完整（不以}结尾），累积到temp中
-                        if(!resultPre.trim().endsWith("}") ){
-                            temp += resultPre;
+                        
+                        // xman:处理中断问题：如果数据不完整，累积到temp中
+                        if (!isJsonComplete(resultPre)) {
+                            temp.append(resultPre);
                             continue;
-                        }
-                        // 如果数据完整（以}结尾）
-                        if(resultPre.trim().endsWith("}")){
+                        } else {
+                            // 如果数据完整，则处理完整数据
                             // 如果之前有累积的不完整数据，先合并
-                            if(!temp.equals("")){
-                                temp += resultPre;
-                                resultPre = temp;
-                                temp = "";
+                            if (temp.length() > 0) {
+                                temp.append(resultPre);
+                                resultPre = temp.toString();
+                                temp.setLength(0);
                             }
                             // 如果temp为空，说明resultPre本身就是完整的，直接使用resultPre
                             // resultPre保持不变，继续后续处理
                         }
+
+                        // logger.info("【大模型调试-debug】处理完整数据，resultPre = {}", resultPre);
+
                         // 整合完成
                         String[] resultArr = resultPre.split("\n");
                         for (String result : resultArr) {
-                            if(StringUtils.isBlank(result)){
+                            if (StringUtils.isBlank(result)) {
                                 continue;
                             }
                             JSONObject jsonObject = new JSONObject();
-                            try{
-                                if(StringUtils.equals(result, ": keep-alive")){
+                            try {
+                                if (StringUtils.equals(result, ": keep-alive")) {
                                     continue;
                                 }
                                 result = result.replace("data:", "").replace("data: ", "").replace("[DONE]", "");
-                                if((StringUtils.equals(baseModelType, "fusionModel") || StringUtils.equals(thinkModelType, "fusionModel")) && !useThink){
+                                if ((StringUtils.equals(baseModelType, "fusionModel")
+                                        || StringUtils.equals(thinkModelType, "fusionModel")) && !useThink) {
                                     result = result.replace("</think>", "").replace("<think>", "");
                                 }
-                                if(StringUtils.isNotBlank(result)){
+                                if (StringUtils.isNotBlank(result)) {
                                     // xman: 解析错误时，跳过
                                     try {
                                         jsonObject = JSONObject.parseObject(result);
@@ -471,77 +488,104 @@ public class XCallLlm {
                                         logger.error("【大模型】调用流式大模型返回的结果解析异常，解析的内容：{}", result, e);
                                         continue;
                                     }
-                                    if(jsonObject.containsKey("choices")){
-                                        if(jsonObject.getJSONArray("choices").size() == 1){
-                                            JSONObject delta = ((JSONObject)jsonObject.getJSONArray("choices").get(0)).getJSONObject("delta");
-                                            //这里兼容一下强制思考的模式
-                                            if(forceThink && delta.containsKey("role") && StringUtils.equals(delta.getString("role"), "assistant")){
-                                                if((!delta.containsKey("content") || StringUtils.isBlank(delta.getString("content")) )
-                                                        && !delta.containsKey("reasoning_content") && !delta.containsKey("reasoning") && isFirstOutput){
+                                    if (jsonObject.containsKey("choices")) {
+                                        if (jsonObject.getJSONArray("choices").size() == 1) {
+                                            JSONObject delta = ((JSONObject) jsonObject.getJSONArray("choices").get(0))
+                                                    .getJSONObject("delta");
+                                            // 这里兼容一下强制思考的模式
+                                            if (forceThink && delta.containsKey("role")
+                                                    && StringUtils.equals(delta.getString("role"), "assistant")) {
+                                                if ((!delta.containsKey("content")
+                                                        || StringUtils.isBlank(delta.getString("content")))
+                                                        && !delta.containsKey("reasoning_content")
+                                                        && !delta.containsKey("reasoning") && isFirstOutput) {
                                                     logger.info("强制思考模式， 放入一个<think>");
                                                     isFirstOutput = false;
                                                     delta.put("content", "<think>");
-                                                } else if (forceThink && !delta.containsKey("reasoning_content") && !delta.containsKey("reasoning") && isFirstOutput && delta.containsKey("content") && StringUtils.isNotBlank(delta.getString("content"))) {
-                                                    logger.info("isFirst = {}, delta = {}", isFirstOutput,  delta);
+                                                } else if (forceThink && !delta.containsKey("reasoning_content")
+                                                        && !delta.containsKey("reasoning") && isFirstOutput
+                                                        && delta.containsKey("content")
+                                                        && StringUtils.isNotBlank(delta.getString("content"))) {
+                                                    logger.info("isFirst = {}, delta = {}", isFirstOutput, delta);
                                                     isFirstOutput = false;
                                                     delta.put("content", "<think>" + delta.getString("content"));
                                                 }
                                             }
-                                            if(delta.containsKey("reasoning_content") && StringUtils.isNotBlank(delta.getString("reasoning_content"))){
+                                            if (delta.containsKey("reasoning_content")
+                                                    && StringUtils.isNotBlank(delta.getString("reasoning_content"))) {
                                                 // 处理思维过程
                                                 String resiningData = delta.getString("reasoning_content");
                                                 resiningData = replaceHalfPunc(unicodeToCh(resiningData));
                                                 thinkStep += resiningData;
-                                                outputStream.write(("<think>" + resiningData + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                outputStream.write(("<think>" + resiningData + "</think>")
+                                                        .getBytes(StandardCharsets.UTF_8));
                                                 outputStream.flush();
-                                            } else if(delta.containsKey("reasoning") && StringUtils.isNotBlank(delta.getString("reasoning"))){
+                                            } else if (delta.containsKey("reasoning")
+                                                    && StringUtils.isNotBlank(delta.getString("reasoning"))) {
                                                 // xman: 适配 ollama v0.12.6
                                                 String resiningData = delta.getString("reasoning");
                                                 resiningData = replaceHalfPunc(unicodeToCh(resiningData));
                                                 thinkStep += resiningData;
-                                                outputStream.write(("<think>" + resiningData + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                outputStream.write(("<think>" + resiningData + "</think>")
+                                                        .getBytes(StandardCharsets.UTF_8));
                                                 outputStream.flush();
                                             } else {
                                                 String data = delta.getString("content");
-                                                if(StringUtils.isNotEmpty(data) || "\n".equals(data)|| "\n\n".equals(data)) {
+                                                if (StringUtils.isNotEmpty(data) || "\n".equals(data)
+                                                        || "\n\n".equals(data)) {
                                                     data = unicodeToCh(data);
-                                                    if(StringUtils.equals("\n", prestr) && StringUtils.equals("\n", data)) {
+                                                    if (StringUtils.equals("\n", prestr)
+                                                            && StringUtils.equals("\n", data)) {
                                                         // 跳过双换行
                                                         continue;
                                                     }
                                                     try {
                                                         String r = replaceHalfPunc(data);
-                                                        if(isEndWithPun(r) || preSentence.length() > 50){
-                                                            if(StringUtils.endsWith(prestr, "\n") && StringUtils.startsWith(r, "\n")){
+                                                        if (isEndWithPun(r) || preSentence.length() > 50) {
+                                                            if (StringUtils.endsWith(prestr, "\n")
+                                                                    && StringUtils.startsWith(r, "\n")) {
                                                                 r = r.substring(1);
                                                             }
                                                             preSentence += r;
                                                             preSentence = format(preSentence, wpsReplace);
-                                                            if(contianThinkLable){
-                                                                if(preSentence.contains("<think>")){
+                                                            if (contianThinkLable) {
+                                                                if (preSentence.contains("<think>")) {
                                                                     thinking = true;
-                                                                    String rescontent = preSentence.replace("<think>", "").replace("</think>", "").trim();
+                                                                    String rescontent = preSentence
+                                                                            .replace("<think>", "")
+                                                                            .replace("</think>", "").trim();
                                                                     thinkStep += rescontent;
-                                                                    outputStream.write(("<think>" + rescontent + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                                    outputStream
+                                                                            .write(("<think>" + rescontent + "</think>")
+                                                                                    .getBytes(StandardCharsets.UTF_8));
                                                                     outputStream.flush();
                                                                     preSentence = "";
                                                                     continue;
                                                                 }
-                                                                if(thinking){
-                                                                    if(StringUtils.contains(preSentence, "</think>")){
+                                                                if (thinking) {
+                                                                    if (StringUtils.contains(preSentence, "</think>")) {
                                                                         thinking = false;
-                                                                        String[] rescontentArray = preSentence.split("</think>");
-                                                                        if(rescontentArray.length == 2){
+                                                                        String[] rescontentArray = preSentence
+                                                                                .split("</think>");
+                                                                        if (rescontentArray.length == 2) {
                                                                             thinkStep += rescontentArray[0];
                                                                             preSentence = rescontentArray[1];
-                                                                            String rescontent = rescontentArray[0].replace("<think>", "").replace("</think>", "");
-                                                                            outputStream.write(("<think>" + rescontent + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                                            String rescontent = rescontentArray[0]
+                                                                                    .replace("<think>", "")
+                                                                                    .replace("</think>", "");
+                                                                            outputStream.write(("<think>" + rescontent
+                                                                                    + "</think>")
+                                                                                    .getBytes(StandardCharsets.UTF_8));
                                                                             outputStream.flush();
                                                                         }
-                                                                    }else{
-                                                                        String rescontent = preSentence.replace("<think>", "").replace("</think>", "");
+                                                                    } else {
+                                                                        String rescontent = preSentence
+                                                                                .replace("<think>", "")
+                                                                                .replace("</think>", "");
                                                                         thinkStep += rescontent;
-                                                                        outputStream.write(("<think>" + rescontent + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                                        outputStream.write(("<think>" + rescontent
+                                                                                + "</think>")
+                                                                                .getBytes(StandardCharsets.UTF_8));
                                                                         outputStream.flush();
                                                                         preSentence = "";
                                                                         continue;
@@ -551,27 +595,32 @@ public class XCallLlm {
                                                             }
                                                             answer += preSentence;
                                                             fixedSizeQueue.add(preSentence);
-                                                            for(int i = 0; i < preSentence.length() / 3 + 1; i++){
-                                                                String tm = preSentence.substring(i * 3, Math.min((i * 3 + 3), preSentence.length()));
-                                                                if(allToThink){
-                                                                    outputStream.write(("<think>" + tm + "</think>").getBytes(StandardCharsets.UTF_8));
-                                                                }else{
+                                                            for (int i = 0; i < preSentence.length() / 3 + 1; i++) {
+                                                                String tm = preSentence.substring(i * 3,
+                                                                        Math.min((i * 3 + 3), preSentence.length()));
+                                                                if (allToThink) {
+                                                                    outputStream.write(("<think>" + tm + "</think>")
+                                                                            .getBytes(StandardCharsets.UTF_8));
+                                                                } else {
                                                                     // xman: 如果只需要输出思考过程，则不输出回答
-                                                                    if(onlyThinking) continue;
-                                                                    outputStream.write(tm.getBytes(StandardCharsets.UTF_8));
+                                                                    if (onlyThinking)
+                                                                        continue;
+                                                                    outputStream
+                                                                            .write(tm.getBytes(StandardCharsets.UTF_8));
                                                                 }
                                                                 outputStream.flush();
                                                             }
                                                             prestr = r;
                                                             preSentence = "";
-                                                        }else{
-                                                            if(StringUtils.endsWith(prestr, "\n") && StringUtils.startsWith(r, "\n")){
+                                                        } else {
+                                                            if (StringUtils.endsWith(prestr, "\n")
+                                                                    && StringUtils.startsWith(r, "\n")) {
                                                                 r = r.substring(1);
                                                             }
                                                             preSentence += r;
                                                             prestr = r;
                                                         }
-                                                    }catch (IOException e){
+                                                    } catch (IOException e) {
                                                         // xman: 只有输出流写数据失败失败时，关闭输出流，并退出循环
                                                         logger.error("【大模型】调用大模型过程中客户端关闭流，向输出流写数据失败！", e);
                                                         try {
@@ -579,57 +628,67 @@ public class XCallLlm {
                                                         } catch (IOException ex) {
                                                         }
                                                         break;
-                                                    }catch (Exception e) {
+                                                    } catch (Exception e) {
                                                         logger.error("【大模型】大模型生成过程出错！内容：{}", result, e);
                                                         continue;
                                                     }
                                                 }
                                             }
                                         }
-                                    } else if(jsonObject.containsKey("result") && jsonObject.containsKey("code")
-                                            && StringUtils.equals(jsonObject.getString("code"), "200")){
+                                    } else if (jsonObject.containsKey("result") && jsonObject.containsKey("code")
+                                            && StringUtils.equals(jsonObject.getString("code"), "200")) {
                                         // 兼容一下黑龙江的定制接口
                                         String data = jsonObject.getJSONObject("result").getString("answer");
-                                        if(StringUtils.isNotEmpty(data) || "\n".equals(data)|| "\n\n".equals(data)) {
+                                        if (StringUtils.isNotEmpty(data) || "\n".equals(data) || "\n\n".equals(data)) {
                                             data = unicodeToCh(data);
-                                            if(StringUtils.equals("\n", prestr) && StringUtils.equals("\n", data)) {
+                                            if (StringUtils.equals("\n", prestr) && StringUtils.equals("\n", data)) {
                                                 // 跳过双换行
                                                 continue;
                                             }
                                             try {
                                                 String r = replaceHalfPunc(data);
-                                                if(isEndWithPun(r) || preSentence.length() > 50){
-                                                    if(StringUtils.endsWith(prestr, "\n") && StringUtils.startsWith(r, "\n")){
+                                                if (isEndWithPun(r) || preSentence.length() > 50) {
+                                                    if (StringUtils.endsWith(prestr, "\n")
+                                                            && StringUtils.startsWith(r, "\n")) {
                                                         r = r.substring(1);
                                                     }
                                                     preSentence += r;
                                                     preSentence = format(preSentence, wpsReplace);
 
-                                                    if(contianThinkLable){
-                                                        if(preSentence.contains("<think>")){
+                                                    if (contianThinkLable) {
+                                                        if (preSentence.contains("<think>")) {
                                                             thinking = true;
-                                                            String rescontent = preSentence.replace("<think>", "").replace("</think>", "").trim();
+                                                            String rescontent = preSentence.replace("<think>", "")
+                                                                    .replace("</think>", "").trim();
                                                             thinkStep += rescontent;
-                                                            outputStream.write(("<think>" + rescontent + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                            outputStream.write(("<think>" + rescontent + "</think>")
+                                                                    .getBytes(StandardCharsets.UTF_8));
                                                             outputStream.flush();
                                                             preSentence = "";
                                                             continue;
                                                         }
-                                                        if(thinking){
-                                                            if(StringUtils.contains(preSentence, "</think>")){
+                                                        if (thinking) {
+                                                            if (StringUtils.contains(preSentence, "</think>")) {
                                                                 thinking = false;
-                                                                String[] rescontentArray = preSentence.split("</think>");
-                                                                if(rescontentArray.length == 2){
+                                                                String[] rescontentArray = preSentence
+                                                                        .split("</think>");
+                                                                if (rescontentArray.length == 2) {
                                                                     thinkStep += rescontentArray[0];
                                                                     preSentence = rescontentArray[1];
-                                                                    String rescontent = rescontentArray[0].replace("<think>", "").replace("</think>", "");
-                                                                    outputStream.write(("<think>" + rescontent + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                                    String rescontent = rescontentArray[0]
+                                                                            .replace("<think>", "")
+                                                                            .replace("</think>", "");
+                                                                    outputStream
+                                                                            .write(("<think>" + rescontent + "</think>")
+                                                                                    .getBytes(StandardCharsets.UTF_8));
                                                                     outputStream.flush();
                                                                 }
-                                                            }else{
-                                                                String rescontent = preSentence.replace("<think>", "").replace("</think>", "");
+                                                            } else {
+                                                                String rescontent = preSentence.replace("<think>", "")
+                                                                        .replace("</think>", "");
                                                                 thinkStep += rescontent;
-                                                                outputStream.write(("<think>" + rescontent + "</think>").getBytes(StandardCharsets.UTF_8));
+                                                                outputStream.write(("<think>" + rescontent + "</think>")
+                                                                        .getBytes(StandardCharsets.UTF_8));
                                                                 outputStream.flush();
                                                                 preSentence = "";
                                                                 continue;
@@ -639,23 +698,26 @@ public class XCallLlm {
                                                     }
                                                     answer += preSentence;
                                                     fixedSizeQueue.add(preSentence);
-                                                    for(int i = 0; i < preSentence.length() / 3 + 1; i++){
-                                                        String tm = preSentence.substring(i * 3, Math.min((i * 3 + 3), preSentence.length()));
+                                                    for (int i = 0; i < preSentence.length() / 3 + 1; i++) {
+                                                        String tm = preSentence.substring(i * 3,
+                                                                Math.min((i * 3 + 3), preSentence.length()));
                                                         // xman: 如果只需要输出思考过程，则不输出回答
-                                                        if(onlyThinking) continue;
+                                                        if (onlyThinking)
+                                                            continue;
                                                         outputStream.write(tm.getBytes(StandardCharsets.UTF_8));
                                                         outputStream.flush();
                                                     }
                                                     prestr = r;
                                                     preSentence = "";
-                                                }else{
-                                                    if(StringUtils.endsWith(prestr, "\n") && StringUtils.startsWith(r, "\n")){
+                                                } else {
+                                                    if (StringUtils.endsWith(prestr, "\n")
+                                                            && StringUtils.startsWith(r, "\n")) {
                                                         r = r.substring(1);
                                                     }
                                                     preSentence += r;
                                                     prestr = r;
                                                 }
-                                            }catch (IOException e){
+                                            } catch (IOException e) {
                                                 // xman: 只有输出流写数据失败失败时，关闭输出流，并退出循环
                                                 logger.error("【大模型】调用大模型过程中客户端关闭流，向输出流写数据失败！", e);
                                                 try {
@@ -663,106 +725,217 @@ public class XCallLlm {
                                                 } catch (IOException ex) {
                                                 }
                                                 break;
-                                            }catch (Exception e) {
+                                            } catch (Exception e) {
                                                 logger.error("【大模型】大模型生成过程出错！内容：{}", result, e);
                                                 continue;
                                             }
                                         }
                                         try {
-                                            boolean is_finished = jsonObject.containsKey("is_finished") ? jsonObject.getBooleanValue("is_finished") : false;
-                                            String finishReason = jsonObject.containsKey("finish_reason") ? jsonObject.getString("finish_reason") : "";
-                                            if(is_finished || StringUtils.isNotBlank(finishReason)){
+                                            boolean is_finished = jsonObject.containsKey("is_finished")
+                                                    ? jsonObject.getBooleanValue("is_finished")
+                                                    : false;
+                                            String finishReason = jsonObject.containsKey("finish_reason")
+                                                    ? jsonObject.getString("finish_reason")
+                                                    : "";
+                                            if (is_finished || StringUtils.isNotBlank(finishReason)) {
                                                 isStop = true;
                                                 // xman: 输出大模型异常结束原因
-                                                if ( StringUtils.isNotBlank(finishReason) && ! StringUtils.equals(finishReason, "stop")){
+                                                if (StringUtils.isNotBlank(finishReason)
+                                                        && !StringUtils.equals(finishReason, "stop")) {
                                                     logger.info("【大模型】大模型异常结束输出，结束原因：{}", finishReason);
                                                     answer += String.format("\n>>>finishReason:%s<<<\n", finishReason);
                                                 }
-                                                if(StringUtils.isNotBlank(preSentence)){
+                                                if (StringUtils.isNotBlank(preSentence)) {
                                                     preSentence = format(preSentence, wpsReplace);
                                                     // xman: 如果只需要输出思考过程，则不输出回答
                                                     answer += preSentence;
-                                                    if(onlyThinking) continue;
+                                                    if (onlyThinking)
+                                                        continue;
                                                     outputStream.write(preSentence.getBytes(StandardCharsets.UTF_8));
                                                     outputStream.flush();
                                                 }
-                                                //这里处理最后的行
+                                                // 这里处理最后的行
                                                 reader.close();
-                                                return StringUtils.isNotBlank(thinkStep)? ("<think>\n" + thinkStep + "</think>" + answer) : answer;
+                                                return StringUtils.isNotBlank(thinkStep)
+                                                        ? ("<think>\n" + thinkStep + "</think>" + answer)
+                                                        : answer;
                                             }
-                                        }catch (Exception e){
+                                        } catch (Exception e) {
                                             logger.error("获取参数失败", e);
                                         }
-                                    }else {
+                                    } else {
                                         logger.error("大模型生成返回的状态码异常, code = {},message = {},  收到的字符串是：{}",
-                                                jsonObject.containsKey("code")? jsonObject.getInteger("code") : "",
-                                                        jsonObject.containsKey("message")? jsonObject.getString("message") : "", result);
+                                                jsonObject.containsKey("code") ? jsonObject.getInteger("code") : "",
+                                                jsonObject.containsKey("message") ? jsonObject.getString("message")
+                                                        : "",
+                                                result);
                                     }
                                 }
-                            }catch (Exception e){
+                            } catch (Exception e) {
                                 logger.error("【大模型】调用流式大模型返回的结果解析异常，解析的内容是{}", resultPre, e);
                             }
                         }
                     }
-                    //最后一句发送
-                    if(StringUtils.isNotBlank(preSentence)){
+                    // 最后一句发送
+                    if (StringUtils.isNotBlank(preSentence)) {
                         preSentence = format(preSentence, wpsReplace);
-                        if(allToThink){
+                        if (allToThink) {
                             outputStream.write(("<think>" + preSentence + "</think>").getBytes(StandardCharsets.UTF_8));
-                        }else{
+                        } else {
                             // xman: 如果只需要输出思考过程，则不输出回答
-                            if(! onlyThinking) 
+                            if (!onlyThinking)
                                 outputStream.write(preSentence.getBytes(StandardCharsets.UTF_8));
                         }
                         outputStream.flush();
                         answer += preSentence;
                     }
-                    //这里处理最后的行
+                    // 这里处理最后的行
                     reader.close();
-                    if(debug){
+                    if (debug) {
                         logger.info("【大模型】closereader");
                     }
-                    if(StringUtils.isBlank(answer)){
+                    if (StringUtils.isBlank(answer)) {
                         outputStream.write("努力思考中！请稍后提问...".getBytes(StandardCharsets.UTF_8));
                     }
                 }
             }
-        }catch (SocketTimeoutException e){
+        } catch (SocketTimeoutException e) {
             // Socket读取超时异常
             logger.error("【大模型调用】Socket读取超时异常，URL={}, Socket超时时间={}ms", url, socketTimeout, e);
             return "";
-        }catch (ConnectException e){
+        } catch (ConnectException e) {
             // 连接异常（可能包含超时）
             logger.error("【大模型调用】连接异常，URL={}", url, e);
             return "";
-        }catch (IOException e){
+        } catch (IOException e) {
             // 其他IO异常，检查是否包含超时信息
             logger.error("【大模型调用】IO异常，URL={}，错误信息：{}", url, e.getMessage());
             return "";
-        }catch (Exception e){
+        } catch (Exception e) {
             // 其他异常
             logger.error("【大模型调用】大模型调用异常，URL={}", url, e);
             return "";
         }
-        logger.info("【大模型调用】通过大模型完成对话完成，耗时{}",(System.currentTimeMillis() - s));
-        if(debug){
+        logger.info("【大模型调用】通过大模型完成对话完成，耗时{}", (System.currentTimeMillis() - s));
+        if (debug) {
             logger.info("【大模型调用调试】输入大模型的信息是 {}, 输出的结果是 {}", params, answer);
         }
-        return StringUtils.isNotBlank(thinkStep)? ("<think>\n" + thinkStep + "</think>" + answer) : answer;
+        return StringUtils.isNotBlank(thinkStep) ? ("<think>\n" + thinkStep + "</think>" + answer) : answer;
     }
 
+    /**
+     * 检查JSON字符串(最后一行)是否完整
+     * 通过检查括号匹配和基本结构来判断JSON是否完整
+     * 
+     * @param jsonStr JSON字符串
+     * @return true表示JSON可能完整，false表示JSON不完整
+     */
+    private boolean isJsonComplete(String jsonStr) {
+        if (StringUtils.isBlank(jsonStr)) {
+            return false;
+        }
 
-    private String buildUrl(boolean useThink){
-        String postUrl = (useThink? thinkUrl: url) ;
-        if(StringUtils.endsWith(url, "/v1")){
-            postUrl = (useThink? thinkUrl: url) + "/chat/completions";
+        // 直接查找最后一个 "data:" 的位置，避免split创建数组
+        int lastDataIndex = jsonStr.lastIndexOf("data:");
+        int startIndex = lastDataIndex >= 0 ? lastDataIndex + 5 : 0; // 5是 "data:" 的长度
+        
+        // 找到最后一个非空数据段的起始和结束位置
+        int trimmedStart = startIndex;
+        int trimmedEnd = jsonStr.length();
+        
+        // 跳过开头的空白字符和换行符
+        while (trimmedStart < trimmedEnd) {
+            char c = jsonStr.charAt(trimmedStart);
+            if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+                break;
+            }
+            trimmedStart++;
+        }
+        
+        // 跳过结尾的空白字符和换行符
+        while (trimmedEnd > trimmedStart) {
+            char c = jsonStr.charAt(trimmedEnd - 1);
+            if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+                break;
+            }
+            trimmedEnd--;
+        }
+        
+        // 如果没有有效内容，返回false
+        if (trimmedStart >= trimmedEnd) {
+            return false;
+        }
+        
+        // 必须以 { 开头
+        if (jsonStr.charAt(trimmedStart) != '{') {
+            return false;
+        }
+        // 必须以 } 结尾
+        if (jsonStr.charAt(trimmedEnd - 1) != '}') {
+            return false;
+        }
+        
+        // 检查括号是否匹配
+        int braceCount = 0;
+        int bracketCount = 0;
+        boolean inString = false;
+        boolean escaped = false;
+
+        for (int i = trimmedStart; i < trimmedEnd; i++) {
+            char c = jsonStr.charAt(i);
+
+            // 处理转义字符
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+
+            // 处理字符串
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+
+            if (!inString) {
+                if (c == '{') {
+                    braceCount++;
+                } else if (c == '}') {
+                    braceCount--;
+                    // 提前检查：如果右括号过多，说明不完整
+                    if (braceCount < 0) {
+                        return false;
+                    }
+                } else if (c == '[') {
+                    bracketCount++;
+                } else if (c == ']') {
+                    bracketCount--;
+                    // 提前检查：如果右方括号过多，说明不完整
+                    if (bracketCount < 0) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // 括号必须匹配，且不在字符串中（字符串应该已经关闭）
+        return braceCount == 0 && bracketCount == 0 && !inString;
+    }
+
+    private String buildUrl(boolean useThink) {
+        String postUrl = (useThink ? thinkUrl : url);
+        if (StringUtils.endsWith(url, "/v1")) {
+            postUrl = (useThink ? thinkUrl : url) + "/chat/completions";
         }
         return postUrl;
     }
 
-
-    private String replaceHalfPunc(String text){
-        if (!replaceEnable){
+    private String replaceHalfPunc(String text) {
+        if (!replaceEnable) {
             return text;
         }
         return text.replace(":", "：")
@@ -777,7 +950,7 @@ public class XCallLlm {
         Pattern pattern = Pattern.compile("(\\\\u(\\p{XDigit}{4}))");
         Matcher matcher = pattern.matcher(string);
         char ch;
-        while(matcher.find()) {
+        while (matcher.find()) {
             ch = (char) Integer.parseInt(matcher.group(2), 16);
             string = string.replace(matcher.group(1), ch + "");
         }
@@ -785,13 +958,12 @@ public class XCallLlm {
         return string;
     }
 
-
-    private boolean isEndWithPun(String key){
-        return StringUtils.endsWith(key, "，") || StringUtils.endsWith(key, "。") || StringUtils.endsWith(key, "！")|| StringUtils.endsWith(key, "\n");
+    private boolean isEndWithPun(String key) {
+        return StringUtils.endsWith(key, "，") || StringUtils.endsWith(key, "。") || StringUtils.endsWith(key, "！")
+                || StringUtils.endsWith(key, "\n");
     }
 
-
-    private String format(String sentence, List<ReplaceWord> wpsReplace){
+    private String format(String sentence, List<ReplaceWord> wpsReplace) {
         sentence = sentence
                 .replace("\n\n", "\n")
                 .replace("\\n\\n", "\\n")
@@ -823,10 +995,10 @@ public class XCallLlm {
                 .replace(" ", "")
                 .replace("】", "");
         sentence = replaceWords.replace(sentence, new ArrayList<>());
-        if(debug){
+        if (debug) {
             logger.info("【大模型调试-debug】替换后的句子是： 【{}】", sentence);
         }
-        //替换调图片url的正则
+        // 替换调图片url的正则
         String regex = "!\\[.*?\\](?:\\(|（).*?(?:\\)|）)";
         Pattern pattern = Pattern.compile(regex);
         Matcher matcher = pattern.matcher(sentence);

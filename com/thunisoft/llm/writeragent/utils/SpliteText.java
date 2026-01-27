@@ -121,7 +121,6 @@ public class SpliteText extends AIWriterBase {
         }
 
         try {
-            // 使用预编译的正则表达式减少内存分配
             String[] lines = LINE_SEPARATOR_PATTERN.split(text);
             StringBuilder sb = STRING_BUILDER_HOLDER.get();
             sb.setLength(0); // 重用StringBuilder
@@ -141,8 +140,10 @@ public class SpliteText extends AIWriterBase {
                     if (trimmed.isEmpty()) {
                         continue; // 跳过空行
                     }
-                    // 如果这一行结尾没有标点，判定为标题 → 跳过
-                    if (!END_WITH_PUNCTUATION.matcher(trimmed).matches() && !HEADING_PATTERN.matcher(trimmed).matches()) {
+                    // 如果这一行结尾没有标点，不以序号开头，不是一级标题，则跳过
+                    if (!END_WITH_PUNCTUATION.matcher(trimmed).matches() && 
+                         !HEADING_PATTERN.matcher(trimmed).matches() && 
+                         !isInFirstLevelTitleSet(trimmed)) {
                         continue;
                     }
                     // 否则遇到正文，开始保留
@@ -487,9 +488,13 @@ public class SpliteText extends AIWriterBase {
             return false;
         if (firstLevelTitleSet.isEmpty())
             return false;
+        
+        // 将title的预处理移到循环外，避免重复处理
+        String trimmed_title = TAILING_WHITE_SPACE_PATTERN.matcher(title).replaceAll("");
+        trimmed_title = HEADING_WHITE_SPACE_PATTERN.matcher(trimmed_title).replaceAll("");
+        
+        // 遍历一级标题集合进行比较
         for (String firstLevelTitle : firstLevelTitleSet) {
-            String trimmed_title = TAILING_WHITE_SPACE_PATTERN.matcher(title).replaceAll("");
-            trimmed_title = HEADING_WHITE_SPACE_PATTERN.matcher(trimmed_title).replaceAll("");
             String trimmed_firstLevelTitle = TAILING_WHITE_SPACE_PATTERN.matcher(firstLevelTitle).replaceAll("");
             trimmed_firstLevelTitle = HEADING_WHITE_SPACE_PATTERN.matcher(trimmed_firstLevelTitle).replaceAll("");
             if (trimmed_title.endsWith(trimmed_firstLevelTitle)) {
@@ -499,7 +504,7 @@ public class SpliteText extends AIWriterBase {
         return false;
     }
 
-    /*
+    /**
      * 按章节拆分文本，如果章节下的长度超过maxLength，则按章节下的段落拆分
      * @param maxLength 最大长度
      * @return 拆分后的文本

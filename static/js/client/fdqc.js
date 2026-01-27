@@ -2510,7 +2510,39 @@ function request(type,  gwwz, title, cause, zhailuids, shoucangids, luyinids, fi
     var _method = 'POST';
     var _url = 'client/fdqc/chat';
     request.open(_method, _url, true);
-    request.timeout = 3600000;// 60分钟
+    // xman:2026-01-26 禁用XMLHttpRequest的内置超时，使用自定义超时管理
+    // XMLHttpRequest的timeout重新设置不会重置计时器，所以我们需要使用setTimeout来管理
+    request.timeout = 0; // 禁用内置超时，使用自定义超时管理
+    // xman:2026-01-26 记录请求开始时间，用于跟踪超时和心跳检测重置超时计时器
+    var requestStartTime = Date.now();
+    request._startTime = requestStartTime; // 将开始时间存储到request对象上，供心跳检测使用
+    var lastDataReceiveTime = Date.now();
+    // xman:2026-01-26 自定义超时管理：使用setTimeout来管理超时，可以真正重置
+    var customTimeoutTimer = null;
+    var CUSTOM_TIMEOUT_DURATION = 3600000; // 1小时
+    
+    // xman:2026-01-26 重置自定义超时计时器的函数
+    function resetCustomTimeout() {
+        // 清除旧的超时计时器
+        if (customTimeoutTimer) {
+            clearTimeout(customTimeoutTimer);
+            customTimeoutTimer = null;
+        }
+        // 创建新的超时计时器
+        customTimeoutTimer = setTimeout(function() {
+            var elapsedTime = Date.now() - requestStartTime;
+            console.error('[请求超时-自定义] 自定义超时计时器触发，已运行: ' + Math.floor(elapsedTime/1000) + 's, readyState: ' + request.readyState);
+            console.error('[请求超时-自定义] 请求URL: ' + _url + ', 请求ID: ' + _id);
+            // 手动触发超时处理
+            if (request.readyState !== 4) {
+                request.abort(); // 中止请求
+                requesting = false;
+            }
+        }, CUSTOM_TIMEOUT_DURATION);
+    }
+    
+    // 初始化超时计时器
+    resetCustomTimeout();
     request.onreadystatechange = function () {
         /**
          * request.readyState
@@ -2520,14 +2552,49 @@ function request(type,  gwwz, title, cause, zhailuids, shoucangids, luyinids, fi
          * 3: 请求处理中
          * 4: 请求已完成，且响应已就绪
          */
+        // xman:2026-01-26 当接收到数据时（readyState为3），重置超时计时器
+        if (request.readyState === 3) {
+            // 接收到流式数据，重置自定义超时计时器
+            lastDataReceiveTime = Date.now();
+            // 重置自定义超时计时器：清除旧的计时器，创建新的1小时计时器
+            resetCustomTimeout();
+            var elapsedTime = Date.now() - requestStartTime;
+            // 每30秒记录一次数据接收日志，避免日志过多
+            if (elapsedTime % 30000 < 1000) {
+                console.log('[数据接收] 接收到流式数据，已运行: ' + Math.floor(elapsedTime/1000) + 's, 已重置自定义超时计时器（3600s）');
+            }
+        }
+        // xman:2026-01-26 请求完成时清除自定义超时计时器
+        if (request.readyState === 4) {
+            if (customTimeoutTimer) {
+                clearTimeout(customTimeoutTimer);
+                customTimeoutTimer = null;
+            }
+        }
         callback(request);
     }
     request.onerror = function handleError() {
-        console.log("request error");
+        // xman:2026-01-26 记录请求错误日志
+        var elapsedTime = request._startTime ? Date.now() - request._startTime : 0;
+        console.error('[请求错误] 请求发生错误，已运行: ' + Math.floor(elapsedTime/1000) + 's, readyState: ' + request.readyState);
+        console.error('[请求错误] 请求URL: ' + _url + ', 请求ID: ' + _id);
+        // 清除自定义超时计时器
+        if (customTimeoutTimer) {
+            clearTimeout(customTimeoutTimer);
+            customTimeoutTimer = null;
+        }
         requesting = false;
     }
     request.ontimeout = function handleTimeout() {
-        console.error('timeout of '+request.timeout+' ms exceeded');
+        // xman:2026-01-26 记录请求超时日志（XMLHttpRequest内置超时，但我们已经禁用了）
+        var elapsedTime = request._startTime ? Date.now() - request._startTime : 0;
+        console.error('[请求超时-XMLHttpRequest] 超时时间: ' + request.timeout + 'ms, 已运行: ' + Math.floor(elapsedTime/1000) + 's, readyState: ' + request.readyState);
+        console.error('[请求超时-XMLHttpRequest] 请求URL: ' + _url + ', 请求ID: ' + _id);
+        // 清除自定义超时计时器
+        if (customTimeoutTimer) {
+            clearTimeout(customTimeoutTimer);
+            customTimeoutTimer = null;
+        }
         requesting = false;
     }
     let isWps = isWeb? false : true;
@@ -2568,7 +2635,10 @@ function request(type,  gwwz, title, cause, zhailuids, shoucangids, luyinids, fi
                 "evaluationInfo": evaData,
             }));
     _request = request;
+    // xman:2026-01-26 将自定义超时管理函数存储到request对象上，供心跳检测使用
+    request._resetCustomTimeout = resetCustomTimeout;
     _scrollToBottom = true;
+    console.log('[请求开始] 请求ID: ' + _id + ', URL: ' + _url + ', 自定义超时时间: ' + CUSTOM_TIMEOUT_DURATION + 'ms (60分钟)');
 }
 
 function getUuid() {
@@ -5103,3 +5173,36 @@ function atyIconKrivz2OnClickClient(rc) {
         $element.toggle();
     }
 }
+
+// xman:2026-01-23 心跳检测
+// 修改：心跳检测时重置主请求的超时计时器，防止长时间运行的请求超时
+var heartbeatInterval = setInterval(() => {
+    fetch("/IntelligentEditor/client/fdqc/heartbeat")
+        .then(() => {
+            // 心跳检测成功，检查并重置主请求的超时计时器
+            if (_request && _request.readyState !== 4 && _request.readyState !== 0) {
+                // 主请求存在且未完成（readyState: 1=连接已建立, 2=请求已接收, 3=请求处理中）
+                // 使用自定义超时管理：调用重置函数来真正重置超时计时器
+                if (_request._resetCustomTimeout) {
+                    _request._resetCustomTimeout();
+                    var currentTime = Date.now();
+                    var requestStartTime = _request._startTime || currentTime;
+                    var elapsedTime = currentTime - requestStartTime;
+                    console.log('[心跳检测] 重置主请求自定义超时计时器，已运行: ' + Math.floor(elapsedTime/1000) + 's, 新超时时间: 3600s');
+                } else {
+                    // 兼容旧代码：如果没有自定义超时管理，使用旧方法
+                    var currentTime = Date.now();
+                    var requestStartTime = _request._startTime || currentTime;
+                    var elapsedTime = currentTime - requestStartTime;
+                    var newTimeout = elapsedTime + 3600000;
+                    _request.timeout = newTimeout;
+                    console.log('[心跳检测] 重置主请求超时计时器（旧方法），已运行: ' + Math.floor(elapsedTime/1000) + 's, 新超时时间: ' + Math.floor(newTimeout/1000) + 's');
+                }
+            }
+        })
+        .catch((error) => {
+            // 心跳检测失败不影响主请求
+            console.warn('[心跳检测] 心跳请求失败:', error);
+        });
+}, 30000);
+

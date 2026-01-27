@@ -70,9 +70,11 @@ public class TemplateWriter extends AIWriterBase {
      */
     private JSONObject getArticleType(String content, OutputStream outputStream) throws RuntimeException {
         try {
+            safeWriteToStream(outputStream, "\n【 获取文章体裁 ... 】\n", true);
+
             JSONArray prompt = buildJsonPrompt(this.articleTypePrompt,
                                                String.format("\n【文章内容】：\n%s\n", content));
-            String result = invokeLlm(prompt, outputStream, true, true);
+            String result = invokeLlm(prompt, nullOutputStream, true, true);
         
             logger.info("获取文章体裁成功: {}", result);
             return JSON.parseObject(result);
@@ -109,11 +111,13 @@ public class TemplateWriter extends AIWriterBase {
             if (exemplaryArticleCategory != null && exemplaryArticleCategory.equals(writingArticleCategory))
                 return articleTitle;
 
+            safeWriteToStream(outputStream, String.format("\n【 修改标题，将标题 %s 修改为符合范文文体类别的标题 ... 】\n", articleTitle), true);
+
             /* 修改标题 */
             JSONArray prompt = buildJsonPrompt(this.modifyTitlePrompt,
                     String.format("\n【文体】：\n%s\n", this.exemplaryArticleTypeJson),
                     String.format("\n【文章标题】：\n%s\n", articleTitle));
-            String result = invokeLlm(prompt, outputStream, true, false);
+            String result = invokeLlm(prompt, nullOutputStream, true, false);
             logger.info("修改标题成功: {}", result);
 
             return result;
@@ -137,8 +141,15 @@ public class TemplateWriter extends AIWriterBase {
                 throw new IllegalArgumentException("范文章节内容不能为空");
             }
 
+            String title = exemplaryChapterJson.getString("title");
+            if (StringUtils.isNotBlank(title)) {
+                text = title + "\n" + text;
+            }
+
+            safeWriteToStream(outputStream, String.format("\n【 生成章节《%s》 写作模板 ... 】\n", exemplaryChapterJson.getString("title")), true);
+
             JSONArray prompt = buildJsonPrompt(this.chapterTemplatePrompt, String.format("\n【范文章节】：\n%s\n", text));
-            String template = invokeLlm(prompt, outputStream, true, true);
+            String template = invokeLlm(prompt, nullOutputStream, true, true);
 
             JSONObject templateJson = JSON.parseObject(template);
             if (exemplaryChapterJson.containsKey("title")) {
@@ -176,13 +187,15 @@ public class TemplateWriter extends AIWriterBase {
                 }
             }
 
+            safeWriteToStream(outputStream, String.format("\n【 初筛章节《%s》的参考内容 ... 】\n", writingTemplate.getString("title")), true);
+
             JSONArray prompt = buildJsonPrompt(this.firstFilterPrompt, 
                         String.format("\n【文章标题】：\n%s\n", articleTitle), 
                         String.format("\n【章节功能描述】：\n%s\n", writingTemplate.getString("function")), 
                         String.format("\n【章节关键信息槽位】：\n%s\n", writingTemplate.getJSONArray("required_slots").toJSONString()), 
                         String.format("\n【参考内容】：\n%s\n", fragmentText.toString()));
 
-            String filter = invokeLlm(prompt, outputStream, true, false);
+            String filter = invokeLlm(prompt, nullOutputStream, true, false);
             if (StringUtils.isBlank(filter)) {
                 return "";
             }
@@ -218,7 +231,9 @@ public class TemplateWriter extends AIWriterBase {
                         String.format("\n【参考内容】：\n%s\n", refrenceContent));
         
         try {
-            String refrence = invokeLlm(prompt, outputStream, true, true);
+            safeWriteToStream(outputStream, String.format("\n【 萃取章节《%s》的参考内容 ... 】\n", writingTemplate.getString("title")), true);
+
+            String refrence = invokeLlm(prompt, nullOutputStream, true, true);
             logger.debug("提取参考内容成功: {}", refrence);
 
             return refrence;
@@ -251,6 +266,8 @@ public class TemplateWriter extends AIWriterBase {
             wordsLimitPrompt = String.format("\n【内容长度要求】：\n%d 字之间，但不能因为长度要求而出现冗余的内容，也不能破坏内容的完整性。\n", wordsLimit);
         }
 
+        safeWriteToStream(outputStream, String.format("\n【章节《%s》写作中 ... 】\n", templateTitle), true);
+
         JSONArray prompt = buildJsonPrompt(this.chapterWritingPrompt, 
                             String.format("\n【文章标题】：\n%s\n", title), 
                             this.exemplaryArticleTypeJson == null ? "" : String.format("\n【语言风格】：\n%s\n", this.exemplaryArticleTypeJson.getString("style")),
@@ -263,27 +280,6 @@ public class TemplateWriter extends AIWriterBase {
         String content = invokeLlm(prompt, outputStream, false, false);
 
         return content;
-    }
-
-    /**
-     * 评估写作质量
-     * @param content 文章内容
-     * @param outputStream 输出流
-     * @return 评估结果
-     */
-    private JSONObject evaluateWritingQuality(String content, String writingTemplate, OutputStream outputStream) throws RuntimeException {
-        JSONArray prompt = buildJsonPrompt(this.evaluateQualityPrompt, 
-                        String.format("\n【文章内容】：\n%s\n", content),
-                        String.format("\n【写作模板】：\n%s\n", writingTemplate),
-                        String.format("\n【语言风格】：\n%s\n", this.exemplaryArticleTypeJson.getString("style")),
-                        String.format("\n【优化规则】：\n%s\n", this.optimizeRules));
-        String result = invokeLlm(prompt, outputStream, true, true);
-        try {
-            return JSON.parseObject(result);
-        } catch (Exception e) {
-            logger.error("评估写作质量失败，解析JSON失败: {} \n", result, e);
-            throw new RuntimeException("评估写作质量失败: " + e.getMessage(), e);
-        }
     }
 
     /**
@@ -419,7 +415,7 @@ public class TemplateWriter extends AIWriterBase {
                     }
 
                     safeWriteToStream(outputStream, String.format("\n【 分析范文章节《%s》 ... 】\n", chapterTitle), true);
-                    JSONObject writingTemplateJson = buildWriterTemplateByChapter(exemplaryChapterJson, nullOutputStream);
+                    JSONObject writingTemplateJson = buildWriterTemplateByChapter(exemplaryChapterJson, outputStream);
                     if (writingTemplateJson == null) {
                         throw new IllegalArgumentException("范文章节的写作模板为空");
                     }

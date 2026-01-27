@@ -13,6 +13,7 @@
 		"java.project.referencedLibraries": [
 			"lib/**/*.jar",
 		],
-		"java.compile.nullAnalysis.mode": "automatic"
+		"java.compile.nullAnalysis.mode": "automatic",
+		"terminal.integrated.scrollback": 20000
 	}
 }

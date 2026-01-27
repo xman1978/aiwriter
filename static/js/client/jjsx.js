@@ -135,8 +135,8 @@ function prepareAndCall(isChange) {
         return;
     }
 
-    if(wordSwitch === true && Number(lengthSize) > 2000) {
-        Artery.alert.warning("字数要求不应超过2000字");
+    if(wordSwitch === true && Number(lengthSize) > 5000) {
+        Artery.alert.warning("字数要求不应超过5000字");
         returnNewState(isChange)
         return;
     }
@@ -144,18 +144,16 @@ function prepareAndCall(isChange) {
     setTimeout(function () {
         if (wpsinner) {
             if (Artery.getParentArtery().getParentWindow().wps.WpsApplication().Selection.Start === Artery.getParentArtery().getParentWindow().wps.WpsApplication().Selection.End) {
-                if(!isChange){
-                    sentence = "";
-                }
+                // if(!isChange){
+                //    sentence = "";
+                // }
+                // xman:2026-01-14 如果选中内容为空，则获取文档内容
+                var doc = Artery.getParentArtery().getParentWindow().wps.WpsApplication().ActiveDocument;
+                var rawText = doc.Content.Text;
+                sentence = rawText.replace(/\r\n|\r/g, "\n").trim(); // 移除尾部换行
+                isSelected = false;
             } else {
                 sentence = Artery.getParentArtery().getParentWindow().wps.WpsApplication().Selection.Text;
-                // xman:2026-01-14 如果选中内容为空，则获取文档内容
-                if (sentence.length === 0 || sentence.trim().length === 0) {
-                    var app = window.parent.wps.WpsApplication()
-                    var doc = app.ActiveDocument
-                    sentence = doc.Range(0, doc.Words.Count).Text;
-                    isSelected = false;
-                }
             }
             // 如果选中内容为空，则提示用户选中内容
             if (sentence.length === 0 || sentence.trim().length === 0) {
@@ -199,31 +197,33 @@ function prepareAndCall(isChange) {
                 var res = JSON.parse(resultObj);
                 var text = res.text;
                 if((text.length === 0 || text.trim().length === 0)) {
-                    // if(!isChange){
-                    //     sentence = "";
-                    // }
-                    // xman:2026-01-14 如果选中内容为空，则获取文档内容
-                    window.parent.aiWriter.getDocumentContent("", (resultObj) => {
-                        try {
-                            const res = JSON.parse(resultObj);
-                            if (res.ok) {
-                                sentence = res.content;
-                            } else {
-                                Artery.message.warning("获取文档内容失败");
-                                returnNewState(isChange)
-                                return;
-                            }
-                        } catch (error) {
-                            Artery.message.warning("获取文档内容失败");
-                            returnNewState(isChange)
-                            return;
-                        }
-                    });
-                    isSelected = false;
+                    if(!isChange){
+                        sentence = "";
+                    }                    
                 } else {
                     sentence = text;
                 }
             });
+            // xman:2026-01-14 如果选中内容为空，则获取文档内容
+            if (sentence.length === 0 || sentence.trim().length === 0) {
+                window.parent.parent.aiWriter.getDocumentContent("", function (resultObj) {
+                    try {
+                        const res = JSON.parse(resultObj);
+                        if (res.ok) {
+                            sentence = res.content;
+                        } else {
+                            Artery.message.warning("获取文档内容失败");
+                            returnNewState(isChange)
+                            return;
+                        }
+                    } catch (error) {
+                        Artery.message.warning("获取文档内容失败");
+                        returnNewState(isChange)
+                        return;
+                    }
+                });
+                isSelected = false;
+            }
             setTimeout(function () {
                 if (sentence.length === 0 || sentence.trim().length === 0) {
                     Artery.alert.warning("请先选中编辑区域文本后重试");
@@ -454,18 +454,32 @@ function atyButtonRxvstOnClickClient(rc) {
         var app = Artery.getParentArtery().getParentWindow().wps.WpsApplication();
         var doc = app.ActiveDocument;
         if (doc) {
-            if (app.Selection.Start !== app.Selection.End) {
-                doc.Range(app.Selection.Start, app.Selection.End).Delete();
+            if (isSelected) {
+                if (app.Selection.Start !== app.Selection.End) {
+                    doc.Range(app.Selection.Start, app.Selection.End).Delete();
+                }
+            } else {
+                // xman:2026-01-19 清空所有内容
+                doc.Range(0, doc.Content.End).Delete();
             }
             var range = doc.Range(app.Selection.End, app.Selection.End);
             range.InsertBefore(text);
-            app.Selection.SetRange(app.Selection.End + text.length, app.Selection.End + text.length)
+            app.Selection.SetRange(app.Selection.End + text.length, app.Selection.End + text.length);
         }
     } else if (isWeb) {
+        if (!isSelected) {
+            // xman:2026-01-19 清空所有内容，然后插入新内容
+            window.parent.parent.clearContent();
+        }
         if (window.parent.parent.insertToEditor) {
             window.parent.parent.insertToEditor(text, false, true, true);
         }
     } else {
+        if (!isSelected) {
+            // xman:2026-01-19 清空所有内容，然后插入新内容
+            window.parent.parent.aiWriter.selectAllText();
+            window.parent.parent.aiWriter.deleteSelectedText();
+        }
         window.parent.parent.aiWriter.insertText(text, function (resultObj) {
             var res = JSON.parse(resultObj);
             if (res.ok) {

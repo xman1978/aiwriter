@@ -46,6 +46,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.ResponseEntity;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -407,6 +408,16 @@ public class FdqcController extends AIBaseController {
         }catch(Exception e){
             logger.error("解析参数失败！", e);
         }
+    }
+
+    /**
+     * xman:2026-01-23 心跳检测
+     * @return
+     */
+    @GetMapping("/heartbeat")
+    public ResponseEntity<Void> heartbeat() {
+        logger.info("心跳 ... ... ... 检测");
+        return ResponseEntity.noContent().build(); // 204
     }
 
     public void callChat(JSONObject params, HttpServletResponse response, boolean isOpenCall, String errorResponse,
