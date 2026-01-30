@@ -112,21 +112,20 @@ public class GxrssController {
       AtomicReference<String> res = new AtomicReference<>("");
       Answer answer = new Answer();
       JSONObject inputParams = this.promptService.buildGxRsPrompt(gxRsParam);
-      if (params.containsKey("isSelected") && params.getBoolean("isSelected")) {
+
+      if (gxRsParam.getProcessType().equals(TextProcessType.COMPRESS_SUMMARY) && params.containsKey("isSelected") && !params.getBoolean("isSelected")) {
+        // xman: 总结文章内容
+        CondenseWriter condenseWriter = new CondenseWriter(this.xCallLlm, gxRsParam.isUseThink(), gxRsParam.isExchange());
+        res.set(condenseWriter.summarizeText(gxRsParam.getSentence(), (OutputStream)servletOutputStream));
+      } else if (gxRsParam.getProcessType().equals(TextProcessType.COMPRESS_SIMPLIFY) && params.containsKey("isSelected") && !params.getBoolean("isSelected")) {
+        // xman: 精简文章内容
+        CondenseWriter condenseWriter = new CondenseWriter(this.xCallLlm, gxRsParam.isUseThink(), gxRsParam.isExchange());
+        res.set(condenseWriter.compressText(gxRsParam.getSentence(), gxRsParam.getLengthSize(), (OutputStream)servletOutputStream));
+      } else {
         if (isRecommend(gxRsParam)) {
           res.set(this.promptService.recomadTj(gxRsParam, inputParams, (OutputStream)servletOutputStream));
         } else {
           res.set(this.promptService.recomadQt(gxRsParam, inputParams, (OutputStream)servletOutputStream));
-        } 
-      } else {
-        // xman: 精简/总结文章内容
-        CondenseWriter condenseWriter = new CondenseWriter(this.xCallLlm, gxRsParam.isUseThink(), gxRsParam.isExchange());
-        if (gxRsParam.getProcessType().equals(TextProcessType.COMPRESS_SUMMARY)) {
-          res.set(condenseWriter.summarizeText(gxRsParam.getSentence(), (OutputStream)servletOutputStream));
-        } else if (gxRsParam.getProcessType().equals(TextProcessType.COMPRESS_SIMPLIFY)) {
-          res.set(condenseWriter.condenseText(gxRsParam.getSentence(), gxRsParam.getLengthSize(), (OutputStream)servletOutputStream));
-        } else {
-          throw new IllegalArgumentException("无效的精简/总结类型: " + gxRsParam.getProcessType().getValue());
         }
       }
 

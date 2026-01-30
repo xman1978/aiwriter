@@ -114,7 +114,7 @@ public class CondenseWriter extends AIWriterBase{
             JSONArray prompt = buildJsonPrompt(this.BreakdownPrompt,
                     String.format("\n【章节内容】：\n%s\n", chapterText),
                     String.format("\n【章节框架】：\n%s\n", chapterFrame.toJSONString()));
-            String chunks = invokeLlm(prompt, outputStream, true, false);
+            String chunks = invokeLlm(prompt, nullOutputStream, true, false);
 
             return chunks;
         } catch (Exception e) {
@@ -143,6 +143,7 @@ public class CondenseWriter extends AIWriterBase{
                     String.format("\n【压缩率】：%f\n", compressionRate),
                     String.format("\n【字数限制】：%d\n", condenseSize));
             String result = invokeLlm(prompt, outputStream, false, false);
+
             return result;
         } catch (Exception e) {
             throw new RuntimeException("精简章节内容失败: " + e.getMessage(), e);
@@ -203,7 +204,7 @@ public class CondenseWriter extends AIWriterBase{
      * @throws RuntimeException
      * @throws IllegalArgumentException
      */
-    public String condenseText(String text, int condenseSize, OutputStream outputStream)
+    public String compressText(String text, int condenseSize, OutputStream outputStream)
             throws RuntimeException, IllegalArgumentException {
         try {
             StringBuffer contentBuffer = new StringBuffer();
@@ -294,6 +295,8 @@ public class CondenseWriter extends AIWriterBase{
             throws RuntimeException, IllegalArgumentException {
         try {
             StringBuffer contentBuffer = new StringBuffer();
+
+            // safeWriteToStream(outputStream, String.format("\n【 文章内容 ... 】\n%s\n", text), true);
         
             // 文章内容分块
             safeWriteToStream(outputStream, String.format("\n【 文章内容分块 ... 】\n"), true);
@@ -362,8 +365,8 @@ public class CondenseWriter extends AIWriterBase{
             
             XCallLlm callLlm = new XCallLlm();
             CondenseWriter condenseWriter = new CondenseWriter(callLlm, false, false);
-            // String result = condenseWriter.summarizeText(text, nullOutputStream);
-            String result = condenseWriter.condenseText(text, 2000, nullOutputStream);
+            String result = condenseWriter.summarizeText(text, nullOutputStream);
+            // String result = condenseWriter.compressText(text, 2000, nullOutputStream);
             System.out.println(result);
         } catch (Exception e) {
             e.printStackTrace();

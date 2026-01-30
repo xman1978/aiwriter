@@ -1,6 +1,5 @@
 package com.thunisoft.intelligenteditor.util;
 
-import com.aspose.words.License;
 import com.aspose.words.Document;
 import com.aspose.words.LoadOptions;
 import com.aspose.words.Field;
@@ -17,11 +16,12 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.commons.io.FileUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aspose.words.License;
+import org.apache.commons.io.FileUtils;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
@@ -42,6 +42,7 @@ public class WordToTxtExtractor {
             LoadOptions loadOptions = new LoadOptions();
             loadOptions.getLanguagePreferences().setDefaultEditingLanguage(2052);
             Document doc = new Document(is, loadOptions);
+            // xman:2026-01-30 更新列表标签和表格布局
             doc.updateListLabels();
             doc.updateTableLayout();
 

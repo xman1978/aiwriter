@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html xmlns:aty="http://www.thunisoft.com">
+<head>
+  <base href="{ctx}/">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="renderer" content="webkit">
+  <meta type="aty-meta" name="java" content="com.thunisoft.intelligenteditor.controller.client.FdqcController.java">
+  <meta type="aty-meta" name="ds" content="rs1" method="dsRs1">
+  <meta type="aty-meta" name="ds" content="rs2" method="dsRs2">
+  <meta type="aty-meta" name="ds" content="rs3" method="dsRs3">
+  <meta type="aty-meta" name="ds" content="rs4" method="dsRs4">
+  <meta type="aty-meta" name="description" content="分段式起草
+" aty:artery-type="description">
+  <link rel="stylesheet" type="text/css" aty:artery-type="import-css"/>
+  <link rel="stylesheet" type="text/css" href="css/client/fdqc.css" aty:artery-type="css"/>
+  <script type="text/javascript" aty:artery-type="script-global"></script>
+  <script type="text/javascript" aty:artery-type="script-config"></script>
+  <script type="text/javascript" aty:artery-type="import-js"></script>
+  <title>公文智能排版与校对系统</title>
+</head>
+<body>
+<aty-region-layout id="atyRegionLayoutIzmwi" border="false">
+  <aty-region-center id="atyRegionCenterImgov" caption="选择起草内容类型和公文种类" class-name="container-choose">
+    <aty-container id="atyContainerTqipx" caption="page1" class-name="marginlr20">
+      <aty-container class-name="gongwen-switch-role-style">
+        <aty-radio id="atyRadioOkcxn" caption="公文文书选择" on-change-client="atyRadioOkcxnOnChangeClient" value="gov">
+          <aty-option id="atyOptionHewlf" text="法定公文" value="gov"></aty-option>
+          <aty-option id="atyOptionWhldn" text="事务文书" value="other"></aty-option>
+        </aty-radio>
+        <aty-container>
+          <aty-button id="atyBtuuonRole" text="角色设置" style-type="link" enable-toggle="true" class-name="custom-ai-role"
+                      on-click-client="showRoleModel"></aty-button>
+        </aty-container>
+      </aty-container>
+      <aty-container id="atyContainerUsscm" caption="公文的类别" class-name="gongwen-switch-style">
+        <aty-region-layout id="atyRegionLayoutXryus"  border="false" class-name="formatLayout">
+          <aty-region-east id="atyRegionEastBrujq" border="false" width="13px">
+            <aty-container id="expandhideBtn1" class-name="expand-icon" on-click-client="changeExpandBtn1"></aty-container>
+          </aty-region-east>
+          <aty-region-center id="atyRegionCenterMmymz" border="false">
+            <aty-toggle-layout id="atyToggleLayoutPymgu" layout="flow" space="4" caption="公文开关布局"
+                               on-select-client="atyToggleLayoutPymguOnSelectClient"
+                               on-select-server="client/fdqc/atyToggleLayoutPymgu/onSelectServer">
+              <aty-container id="atyContainerNcgzu" caption="通知" class-name="container-content-type select1">通知</aty-container>
+              <aty-container id="atyContainerBsmrl" caption="报告" class-name="container-content-type select1">报告</aty-container>
+              <aty-container id="atyContainerRedmg" caption="请示" class-name="container-content-type select1">请示</aty-container>
+              <aty-container id="atyContainerSirme" caption="批复" class-name="container-content-type select1">批复</aty-container>
+              <aty-container id="atyContainerNhswg" caption="意见" class-name="container-content-type select1">意见</aty-container>
+              <aty-container id="atyContainerWrnrw" caption="决议" class-name="container-content-type select1"
+                             on-show="atyContainerWrnrwOnShow">决议</aty-container>
+              <aty-container id="atyContainerJjooo" caption="决定" class-name="container-content-type select1">决定</aty-container>
+              <aty-container id="atyContainerCzgel" caption="议案" class-name="container-content-type select1"
+                             on-show="atyContainerCzgelOnShow">议案</aty-container>
+              <aty-container id="atyContainerQltvn" caption="函" class-name="container-content-type select1">函</aty-container>
+              <aty-container id="atyContainerHower" class-name="container-content-type select1" caption="通告">通告</aty-container>
+              <aty-container id="atyContainerOpdzk" caption="通报" class-name="container-content-type select1">通报</aty-container>
+              <aty-container id="atyContainerBvxzh" caption="公告" class-name="container-content-type select1"
+                             on-show="atyContainerBvxzhOnShow">公告</aty-container>
+              <aty-container id="atyContainerIykov" caption="纪要" class-name="container-content-type select1">纪要</aty-container>
+              <aty-container id="atyContainerKlqld" caption="公报" class-name="container-content-type select1"
+                             on-show="atyContainerKlqldOnShow">公报</aty-container>
+              <aty-container id="atyContainerIador" caption="令" class-name="container-content-type select1">令</aty-container>
+            </aty-toggle-layout>
+          </aty-region-center>
+        </aty-region-layout>
+        <aty-region-layout id="atyRegionLayoutbgrq" border="false" >
+          <aty-region-east id="atyRegionEastaebq" border="false" width="13px">
+            <aty-container id="expandhideBtn2" class-name="expand-icon" on-click-client="changeExpandBtn2"></aty-container>
+          </aty-region-east>
+          <aty-region-center id="atyRegionCenterMrhgz" border="false">
+            <aty-toggle-layout id="atyToggleLayoutHrdhc" caption="文书开关布局" layout="flow" space="4" hidden
+                               on-select-client="atyToggleLayoutPymguOnSelectClient"
+                               on-select-server="client/fdqc/atyToggleLayoutPymgu/onSelectServer">
+
+              <aty-container id="atyContainerXchua" class-name="container-content-type select2">会议纪要</aty-container>
+              <aty-container id="atyContainerFanga" class-name="container-content-type select2">方案</aty-container>
+              <aty-container id="atyContainerGongzZongjie" class-name="container-content-type select2">工作总结</aty-container>
+              <aty-container id="atyContainerVfyit" class-name="container-content-type select2">工作报告</aty-container>
+              <aty-container id="atyContainerQgpoa" class-name="container-content-type select2">制度</aty-container>
+              <aty-container id="atyContainerZheng" class-name="container-content-type select2">整改报告</aty-container>
+              <aty-container id="atyContainerWvjfx" class-name="container-content-type select2">讲话稿</aty-container>
+              <aty-container id="atyContainerMylfu" class-name="container-content-type select2">调研报告</aty-container>
+              <aty-container id="atyContainerTongbao" class-name="container-content-type select2">通报</aty-container>
+              <aty-container id="atyContainerShuzh" class-name="container-content-type select2">述职报告</aty-container>
+              <aty-container id="atyContainerGanxi" class-name="container-content-type select2">感谢信</aty-container>
+              <aty-container id="atyContainerBiaoy" class-name="container-content-type select2">表扬信</aty-container>
+              <aty-container id="atyContainerShijiQingkuang" class-name="container-content-type select2">情况报告</aty-container>
+              <aty-container id="atyContainerShijiShijian" class-name="container-content-type select2">事件评价</aty-container>
+              <aty-container id="atyContainerXinwn" class-name="container-content-type select2">新闻稿</aty-container>
+              <aty-container id="atyContainerKaocha" class-name="container-content-type select2">考察报告</aty-container>
+              <aty-container id="atyContainerRicheng" class-name="container-content-type select2">日程议程</aty-container>
+              <aty-container id="atyContainerXuxth" class-name="container-content-type select2">学习体会</aty-container>
+              <aty-container id="atyContainerGongzQingjia" class-name="container-content-type select2">请假条</aty-container>
+              <aty-container id="atyContainerJiayp" class-name="container-content-type select2">其他</aty-container>
+            </aty-toggle-layout>
+          </aty-region-center>
+        </aty-region-layout>
+      </aty-container>
+      <aty-container id="atyContainerLyhfr" caption="标题输入">
+        <aty-container id="atyContainerKxuel" class-name="title-contain-style">
+          <aty-container id="atyTextMrjlv" class-name="title-start">*</aty-container>
+          <aty-container id="atyTextIbmku" class-name="title-wenzhang">文章标题</aty-container>
+          <aty-container id="atyContainerTs">
+            <aty-tooltip content="发文机关 + 关于 + 主要事由 + 文种" placement="right">
+              <i class="aty-hypf-icon icon-tj-wh" data-key="jjrs"></i>
+            </aty-tooltip>
+          </aty-container>
+        </aty-container>
+        <aty-input id="atyInputYkjao" on-valid-client="atyInputYkjaoOnValidClient" placeholder="输入建议为 发文机关 + 关于 + 主要事由 + 的 + 文种"></aty-input>
+      </aty-container>
+      <aty-container id="atyContainerZwufy" caption="字数控制" on-show="atyContainerZwufyOnShow">
+
+        <aty-container id="atyContainerMleug" caption="按钮组" class-name="zs-btn-group">
+          <aty-container id="atyContainerXpaei" caption="字数">
+            <aty-text id="atyTextAysyb" text="文章篇幅"></aty-text>
+          </aty-container>
+          <aty-container id="atyContainerGdgnj">
+            <aty-tooltip content="100-500字" placement="top">
+              <aty-button id="atyButtonElyux" text="短" style-type="cmb zsbtn"
+                          on-click-client="atyButtonElyuxOnClickClient"></aty-button>
+            </aty-tooltip>
+            <aty-tooltip content="600-1200字" placement="top">
+              <aty-button id="atyButtonDuopp" text="中" style-type="cmb zsbtn"
+                          on-click-client="atyButtonDuoppOnClickClient"></aty-button>
+            </aty-tooltip>
+            <aty-tooltip content="2000字左右" placement="top">
+              <aty-button id="atyButtonRblns" text="长" style-type="cmb zsbtn zsbtn-active"
+                          on-click-client="atyButtonRblnsOnClickClient"></aty-button>
+            </aty-tooltip>
+            <aty-tooltip id="tooltipasy" content="未选择" placement="top" disabled="true">
+              <aty-button id="atyButtonHzanm" text="..." style-type="cmb zsbtn"
+                          on-click-client="atyButtonHzanmOnClickClient"></aty-button>
+            </aty-tooltip>
+          </aty-container>
+        </aty-container>
+        <aty-container id="atyContainerPthbv" caption="列表页" class-name="list-page-zs" hidden>
+          <aty-container id="atyContainerTmgzl" class-name="ext-zsnum">
+            <aty-container id="atyContainerRhcce" class-name="zsnum" on-click-client="atyContainerRhcceOnClickClient">
+              <aty-text id="atyTextKrlrh" text="3000"></aty-text>
+            </aty-container>
+            <aty-container id="atyContainerWdvcq" class-name="zsnum" on-click-client="atyContainerWdvcqOnClickClient">
+              <aty-text id="atyTextJptdl" text="5000"></aty-text>
+            </aty-container>
+            <aty-container id="atyContainerWdvyw" class-name="zsnum" on-click-client="atyContainerWdvywOnClickClient">
+              <aty-text id="atyTextJptdl1" text="10000"></aty-text>
+            </aty-container>
+          </aty-container>
+        </aty-container>
+        <aty-container id="atyContainerIaiok" caption="提示信息" class-name="list-page-tips" hidden >
+          <aty-container id="atyContainerEqiws" class-name="icon-float-left">
+            <aty-icon id="atyIconHygsm" type="aty-message-icon aty-plugin-icon aty-icon-android-alert"></aty-icon>
+          </aty-container>
+          <aty-container id="atyContainerSrqfu">
+            <aty-text id="atyTextZyjy" text="编写长篇幅文章需尽量输入大纲内容，或先让AI生成大纲。同时补充内容要求，上传参考资料，但是仍可能因模型限制，无法按指定字数输出"></aty-text>
+          </aty-container>
+        </aty-container>
+        <aty-container id="atyContainerIaiow" caption="提示信息" class-name="list-page-tips" hidden >
+          <aty-container id="atyContainerEqiww" class-name="icon-float-left">
+            <aty-icon id="atyIconHygsw" type="aty-message-icon aty-plugin-icon aty-icon-android-alert"></aty-icon>
+          </aty-container>
+          <aty-container id="atyContainerSrqfw">
+            <aty-text id="atyTextZyjw" text="编写长篇幅文章需尽量输入大纲内容，或先让AI生成大纲。同时补充内容要求，上传参考资料，但是仍可能因模型限制，输出达不到万字"></aty-text>
+          </aty-container>
+        </aty-container>
+      </aty-container>
+      <aty-container id="atyContainerBdwuo" caption="新版页面">
+        <aty-container id="atyContainerFmpqp" caption="内容要求" class-name="container-nryq">
+          <aty-container id="atyContainerSlsgc" class-name="container-nryq-title">
+            <aty-icon id="atyIconHwuwn" class-name="icon-nryq"></aty-icon>
+            <aty-text id="atyTextAbenc" text="内容要求"></aty-text>
+          </aty-container>
+          <aty-textarea id="atyTextareaPelma" class-name="textarea-nryq" autosize placeholder="填写要编写内容的关键信息和要求，如内容方面的背景、事项、结论等，写作的风格，语气，写文人的角色等"
+          ></aty-textarea>
+        </aty-container>
+        <aty-container id="atyContainerWggmd" class-name="dwxxflex">
+          <aty-checkbox id="atyCheckboxshshs" col-num="1" value="yes" col-widths="110" class-name="col-checkbox" caption="单位信息"
+                        on-show="atyCheckboxshshsOnShow" on-change-client="atyCheckboxshshsOnChangeClient">
+            <aty-option value="yes" text="引用单位信息"></aty-option>
+          </aty-checkbox>
+          <aty-tooltip content="" placement="top" id="atytooltipIconfont" class-name="tooltip-icon">
+            <aty-container id="atyContainerYzceo" class-name="tooltip-content"></aty-container>
+          </aty-tooltip>
+        </aty-container>
+        <aty-container id="atyContainerRgvlh" caption="大纲" class-name="container-dg expand">
+          <aty-container id="atyContainerZouxw" class-name="container-dg-title"
+                         on-click-client="atyContainerZouxwOnClickClient">
+            <aty-icon id="atyIconCzkwu" class-name="icon-dg"></aty-icon>
+            <aty-text id="atyTextJcxev" text="大纲"></aty-text>
+            <aty-icon id="atyIconLkqay" class-name="icon-zksq"></aty-icon>
+          </aty-container>
+          <aty-textarea id="atyTextareaEjhta" class-name="textarea-dg" placeholder="填写要编写内容的大纲" autosize hidden
+                        on-valid-client="atyTextareaEjhtaOnValidClient"></aty-textarea>
+        </aty-container>
+        <aty-container id="atyContainerCposp" caption="添加结构参考" class-name="container-jkck  collapse">
+          <aty-container id="atyContainerJefzt" class-name="container-jgck-title"
+                         on-click-client="atyContainerJefztOnClickClient">
+            <aty-icon id="atyIconNzliq" class-name="icon-jgck"></aty-icon>
+            <aty-text id="atyTextSlxsm" text="添加结构参考" on-show="atyTextSlxsmOnShow"></aty-text>
+            <aty-text id="atyTextYgxnc" text="参考文稿的结构和逻辑框架" class-name="text-jgck-desc"></aty-text>
+            <aty-icon id="atyIconAxqeb" class-name="icon-zksq"></aty-icon>
+          </aty-container>
+          <aty-container id="atyContainerUglxh" class-name="container-jgck-mb">
+            <aty-text id="atyTextQcelf" text="请选择仿写材料模版" show="false"></aty-text>
+            <aty-icon id="atyIconPymfo" show="false"></aty-icon>
+            <aty-container id="atyContainerVdsfq" caption="选择仿写材料模版" class-name="container-jgk-fxmb"
+                           on-click-client="atyContainerVdsfqOnClickClient" on-show="atyContainerVdsfqOnShow">
+              <aty-text id="atyTextUqfea" text="选择仿写材料模版"></aty-text>
+            </aty-container>
+            <aty-container id="atyContainerAahle" caption="选择仿写材料模版弹出层"
+                           class-name="container-jgck-xzmb-popup" hidden>
+              <aty-loop-area id="atyLoopAreaUjlju" ds="rs4">
+                <aty-container id="atyContainerBamzb" class-name="xzmb-popup-item"
+                               on-click-client="atyContainerBamzbOnClickClient">
+                  <aty-text id="atyTextNwqag" text="{rs4.title}" title="{rs4.title}"
+                            class-name="xzmb-popup-item-showtext"></aty-text>
+                </aty-container>
+              </aty-loop-area>
+            </aty-container>
+            <aty-container id="atyContainerYonzk" caption="新建仿写材料模版" class-name="container-jgk-fxmb"
+                           on-click-client="atyContainerYonzkOnClickClient" on-show="atyContainerYonzkOnShow">
+              <aty-text id="atyTextIuhej" text="选择文稿"></aty-text>
+            </aty-container>
+            <aty-container id="atyContainerGengj" caption="新建仿写材料模版弹出层"
+                           class-name="container-nrck-xzwg-popup" hidden on-show="atyContainerGengjOnShow">
+              <aty-container id="atyContainerTtaod" class-name="xzwg-popup-item">
+                <aty-upload id="atyUploadAejkv1" icon="icon-xzwg-scwj" text="上传文件" class-name="file-upload"
+                            max-number-of-files="1" accept=".doc,.docx,.wps,.txt,.pdf" accept-file-types="/(\.|\/)(docx?|txt|wps|pdf)$/i" submit-name="fileupload"
+                            on-after-add-client="atyUploadAejkv1OnAfterAddClient"
+                            on-upload-url="client/fdqc/atyUploadAejkv1/onUploadUrl" hidden
+                            on-done-client="atyUploadAejkvOnDoneClient" on-fail-client="atyUploadAejkvOnFailClient"
+                            on-before-add-client="atyUploadAejkv1OnBeforeAddClient">
+                </aty-upload>
+              </aty-container>
+              <aty-container id="atyContainerMbmat" class-name="xzwg-popup-item"
+                             on-click-client="atyContainerMbmatOnClickClient">
+                <aty-icon id="atyIconPpyup" class-name="icon-xzwg-scwj"></aty-icon>
+                <aty-text id="atyTextAxvrl" text="上传文件"></aty-text>
+              </aty-container>
+              <aty-container on-show="atyContainerGwzsOnShow" id="atyContainerOysjy" class-name="xzwg-popup-item"
+                             on-click-client="atyContainerOysjyOnClickClient">
+                <aty-icon id="atyIconIplnk" class-name="icon-xzwg-yysc"></aty-icon>
+                <aty-text id="atyTextFqgla" text="引用收藏"></aty-text>
+              </aty-container>
+            </aty-container>
+          </aty-container>
+          <aty-container id="atyContainerJslmk" caption="仿写材料文件列表"></aty-container>
+        </aty-container>
+        <aty-container id="atyContainerDzfpk" caption="添加内容参考" class-name="container-nrck collapse"
+                       on-show="atyContainerDzfpkOnShow">
+          <aty-container id="atyContainerHzgjm" class-name="container-nrck-title"
+                         on-click-client="atyContainerHzgjmOnClickClient">
+            <aty-icon id="atyIconFkumy" class-name="icon-nrck"></aty-icon>
+            <aty-text id="atyTextAbmah" text="添加内容参考" on-show="atyTextAbmahOnShow"></aty-text>
+            <aty-text id="atyTextMfvjw" class-name="text-jgck-desc" text="参考文稿的观点、案例和数据"></aty-text>
+            <aty-icon id="atyIconDwemc" class-name="icon-zksq"></aty-icon>
+          </aty-container>
+          <aty-container id="atyContainerQsrna" class-name="container-nrck-type">
+            <aty-container id="atyContainerEtrak" caption="知识库搜索" class-name="container-nrck-zskss sel"
+                           on-show="atyContainerEtrakOnShow" on-click-client="atyContainerEtrakOnClickClient">
+              <aty-icon id="atyIconKrivz" class-name="icon-zskss icon-margin-left"></aty-icon>
+              <aty-text id="atyTextGaxjx" text="知识库搜索" class-name="icon-margin-right"></aty-text>
+              <aty-icon id="atyIconKrivz1" class-name="collapseicon-zksq mgr" on-click-client="atyIconKrivz2OnClickClient" on-show="atyIconKrivz1downOnShow"></aty-icon>
+            </aty-container>
+            <aty-container id="atyContainerKervu" caption="选择文稿" class-name="container-nrck-xzwg"
+                           on-show="atyContainerKervuOnShow" on-click-client="atyContainerKervuOnClickClient">
+              <aty-text id="atyTextYonmo" text="选择文稿"></aty-text>
+            </aty-container>
+            <aty-container id="atyContainerQpucs" caption="选择文稿弹出层" hidden class-name="container-nrck-xzwg-popup"
+                           on-show="atyContainerQpucsOnShow">
+              <aty-container id="atyContainerXahpf" class-name="xzwg-popup-item">
+                <aty-upload id="atyUploadAejkv2" icon="icon-xzwg-scwj" text="上传文件" class-name="file-upload"
+                            max-number-of-files="5" accept=".doc,.docx,.wps,.txt,.pdf,.xls,.xlsx" accept-file-types="/(\.|\/)(docx?|wps|txt|pdf|xlsx|xls)$/i" submit-name="fileupload"
+                            on-after-add-client="atyUploadAejkv2OnAfterAddClient"
+                            on-upload-url="client/fdqc/atyUploadAejkv2/onUploadUrl" hidden
+                            on-done-client="atyUploadAejkvOnDoneClient" on-fail-client="atyUploadAejkvOnFailClient">
+                </aty-upload>
+              </aty-container>
+              <aty-container id="atyContainerDiett" class-name="xzwg-popup-item"
+                             on-click-client="atyContainerDiettOnClickClient">
+                <aty-icon id="atyIconRoqhj" class-name="icon-xzwg-scwj"></aty-icon>
+                <aty-text id="atyTextHutqg" text="上传文件"></aty-text>
+              </aty-container>
+              <aty-container on-show="atyContainerGwzsOnShow" id="atyContainerQueox" class-name="xzwg-popup-item"
+                             on-click-client="atyContainerQueoxOnClickClient">
+                <aty-icon id="atyIconZhhqm" class-name="icon-xzwg-yysc"></aty-icon>
+                <aty-text id="atyTextNpoxu" text="引用收藏"></aty-text>
+              </aty-container>
+              <aty-container on-show="atyContainerGwzsOnShow" id="atyContainerVifwo" class-name="xzwg-popup-item"
+                             on-click-client="atyContainerVifwoOnClickClient">
+                <aty-icon id="atyIconDxtge" class-name="icon-xzwg-yyzl"></aty-icon>
+                <aty-text id="atyTextDkfcz" text="引用摘录"></aty-text>
+              </aty-container>
+            </aty-container>
+          </aty-container>
+          <aty-container id="atyCheckBoxzskcom" hidden>
+            <aty-checkbox id="zskSearchIdscom" value="0,1,2" col-num="3" col-widths="150,150,150"
+                          on-change-client="zskSearchIdscomOnChangeClient">
+              <aty-option value="0" text="通用知识库"></aty-option>
+              <aty-option value="1" text="单位知识库"></aty-option>
+              <aty-option value="2" text="个人知识库"></aty-option>
+            </aty-checkbox>
+          </aty-container>
+          <aty-container id="atyContainerEdvxu" caption="内容参考文件列表"></aty-container>
+        </aty-container>
+        <aty-container id="atyContainerDzfpkhmd" caption="添加内容参考hmd" class-name="container-nrck expand"
+                       on-show="atyContainerDzfpkhmdOnShow">
+          <aty-container id="atyContainerHzgjmhmd" class-name="container-nrck-title"
+                         on-click-client="atyContainerHzgjmhmdOnClickClient">
+            <aty-icon id="atyIconFkumyhmd" class-name="icon-nrck"></aty-icon>
+            <aty-text id="atyTextAbmahhmd" text="添加内容参考" on-show="atyTextAbmahOnShow"></aty-text>
+            <aty-text id="atyTextMfvjwhmd" class-name="text-jgck-desc" text="参考文稿的观点、案例和数据"></aty-text>
+            <aty-icon id="atyIconDwemchmd" class-name="icon-zksq"></aty-icon>
+          </aty-container>
+          <aty-container id="atyContainerQsrnahmd" hidden class-name="container-nrck-type-zskss">
+            <aty-container class-name="container-nrck-zskss-group">
+              <aty-container class-name="container-nrck-zskss" style="width: 100%">
+                <aty-container>
+                  <aty-text text="知识库搜索"></aty-text>
+                </aty-container>
+                <aty-container>
+                  <aty-switch id="switchChangeZsss" on-change-client="switchChangeZsssOnChangeClient"></aty-switch>
+                </aty-container>
+              </aty-container>
+              <aty-container id="atyCheckBoxzsk" hidden>
+                <aty-checkbox id="zskSearchIds" value="0,1,2" col-num="3" col-widths="150,150,150"
+                              on-change-client="zskSearchIdsOnChangeClient">
+                  <aty-option value="0" text="通用知识库"></aty-option>
+                  <aty-option value="1" text="单位知识库"></aty-option>
+                  <aty-option value="2" text="个人知识库"></aty-option>
+                </aty-checkbox>
+              </aty-container>
+            </aty-container>
+
+            <aty-container class-name="zsss-popup-item-group">
+              <aty-container id="atybtnsswj" class-name="zsss-popup-item" caption="上传文件hmd">
+                <aty-container id="atyuploadbtnsm" hidden class-name="atyuploadbtnsm" style="display: flex; align-items: center;">
+                  <aty-icon id="atyIconRoqhjhmd" class-name="icon-xzwg-scwj"></aty-icon>
+                  <aty-text id="atyTextHutqghmd" text="上传文件"></aty-text>
+                </aty-container>
+                <aty-upload id="atyUploadAejkv2hmd" icon="icon-xzwg-scwj" text="上传文件" class-name="file-upload"
+                            max-number-of-files="5" accept=".doc,.docx,.wps,.txt,.pdf,.xls,.xlsx" accept-file-types="/(\.|\/)(docx?|wps|txt|pdf|xlsx|xls)$/i" submit-name="fileupload"
+                            on-after-add-client="atyUploadAejkv2hmdOnAfterAddClient"
+                            on-upload-url="client/fdqc/atyUploadAejkv2/onUploadUrl" hidden
+                            on-done-client="atyUploadAejkvOnDoneClient" on-fail-client="atyUploadAejkvOnFailClient"
+                            on-file-click-client="atyUploadAejkv2hmdOnFileClickClient"
+                            on-send-client="atyUploadAejkv2hmdOnSendClient"></aty-upload>
+              </aty-container>
+              <aty-container id="atybtngrzsk" class-name="zsss-popup-item" on-click-client="atyContainerQueoxhmdOnClickClient" style="margin-left: 10px;">
+                <aty-icon id="atyIconZhhqmhmd" class-name="icon-xzwg-yysc"></aty-icon>
+                <aty-text id="atyTextNpoxuhmd" text="选择个人文稿"></aty-text>
+              </aty-container>
+            </aty-container>
+          </aty-container>
+          <aty-container id="atyContainerEdvxuhmd" caption="内容参考文件列表"></aty-container>
+        </aty-container>
+      </aty-container>
+      <aty-container id="atyContainerBuoch" caption="旧版页面（没用了）" show="false">
+        <aty-container id="atyContainerJhizy" caption="关键信息">
+          <aty-container class-name="btngroup">
+            <aty-container id="atyTextLucvl" caption="关键信息" class-name="title-float-left">内容要求</aty-container>
+            <aty-container class-name="right-btngroup">
+              <aty-container id="atyContainerKgkrp" caption="参考信息按钮" class-name="title-float-left ckxx-btn"
+                             on-click-client="atyContainerKgkrpOnClickClient"
+                             on-click-server="client/fdqc/atyContainerKgkrp/onClickServer">
+                <aty-text id="atyTextPkgwa" text="摘录引用"></aty-text>
+                <aty-container id="atyIconArfwc"  class-name="ckxx-btn-icon-up"></aty-container>
+              </aty-container>
+  <!--            <aty-container id="atyContainerKgkrp1" caption="收藏信息按钮" class-name="title-float-left ckxx-btn"-->
+  <!--                           on-click-client="atyContainerKgkrp1OnClickClient">-->
+  <!--              <aty-text id="atyTextPkgwa" text="收藏引用"></aty-text>-->
+  <!--              <aty-container id="atyIconArfwc1"  class-name="ckxx-btn-icon-up"></aty-container>-->
+  <!--            </aty-container>-->
+            </aty-container>
+          </aty-container>
+          <aty-textarea id="atyTextareaPelma" min-rows="3" max-rows="6" class-name="shiyou-input" autosize placeholder="填写要编写内容的关键信息和要求，如内容方面的背景、事项、结论等，写作的风格，语气，写文人的角色等"></aty-textarea>
+        </aty-container>
+        <aty-container id="atyContainerWggmd" class-name="dwxxflex">
+          <aty-checkbox id="atyCheckboxshshs" col-num="1" value="yes" col-widths="110" class-name="col-checkbox" caption="单位信息"
+                        on-show="atyCheckboxshshsOnShow" on-change-client="atyCheckboxshshsOnChangeClient">
+            <aty-option value="yes" text="引用单位信息"></aty-option>
+          </aty-checkbox>
+          <aty-tooltip content="" placement="top" id="atytooltipIconfont" class-name="tooltip-icon">
+  <!--          <aty-icon id="customIconFont" type="hypf-icon-B-043" class-name="custom-icon" size="14px"></aty-icon>-->
+            <aty-container id="atyContainerYzceo" class-name="tooltip-content"></aty-container>
+          </aty-tooltip>
+        </aty-container>
+        <aty-container id="atyContainerXwigr" caption="文档信息" class-name="container-btn">
+          <aty-container id="atyContainerEfhhl" class-name="file-upload-container">
+            <aty-text id="atyTextXvovi" text="参考资料" class-name="file-upload-container"></aty-text>
+
+            <aty-container class-name="btn-group-new">
+  <!--            <aty-container id="atyContainerKgkrp" caption="参考信息按钮" class-name="title-float-left ckxx-btn down-btn"-->
+  <!--                           on-click-client="atyContainerKgkrpOnClickClient"-->
+  <!--                           on-click-server="client/fdqc/atyContainerKgkrp/onClickServer">-->
+  <!--              <aty-text id="atyTextPkgwa" text="摘录引用"></aty-text>-->
+  <!--              <aty-container id="atyIconArfwc"  class-name="ckxx-btn-icon-up"></aty-container>-->
+  <!--            </aty-container>-->
+              <aty-button id="atyButtonUxpqc" text="知识库搜索" class-name="btn-zskss" icon="icon-zskss"
+                          on-click-client="atyButtonUxpqcOnClickClient" on-show="atyButtonUxpqcOnShow"></aty-button>
+              <aty-container id="atyContainerKgkrp1" caption="收藏信息按钮" class-name="title-float-left ckxx-btn down-btn"
+                             on-click-client="atyContainerKgkrp1OnClickClient">
+                <aty-text id="atyTextPkgwa" text="收藏引用"></aty-text>
+                <aty-container id="atyIconArfwc1"  class-name="ckxx-btn-icon-up"></aty-container>
+              </aty-container>
+
+              <aty-upload id="atyUploadAejkv2" icon="icon-adddoc" text="添加文档" class-name="btn-adddoc"
+                          max-number-of-files="5" accept=".doc,.docx,.wps,.txt,.pdf" accept-file-types="/(\.|\/)(docx?|wps|txt|pdf)$/i" submit-name="fileupload"
+                          on-after-add-client="atyUploadAejkv2OnAfterAddClient"
+                          on-upload-url="client/fdqc/atyUploadAejkv2/onUploadUrl" hidden
+                          on-done-client="atyUploadAejkvOnDoneClient" on-fail-client="atyUploadAejkvOnFailClient">
+              </aty-upload>
+              <aty-button id="atyButtonLmier2" style-type="link" text="添加文档" icon="icon-adddoc" class-name="btn-adddoc-xc" hidden
+                          on-click-client="atyButtonLmier2OnClickClient"></aty-button>
+            </aty-container>
+          </aty-container>
+          <aty-container id="atyContainerEdvxu" caption="参考资料文件列表"></aty-container>
+          <aty-container id="atyContainerTrqxe" class-name="file-upload-container">
+            <aty-text id="atyTextIocxt" text="仿写材料"></aty-text>
+            <aty-container>
+              <aty-button id="atyButtonUdlpm" text="收藏资料" style-type="link" class-name="btn-add-sc-info"
+                          on-click-client="atyButtonUdlpmOnClickClient"></aty-button>
+              <aty-upload id="atyUploadAejkv1" icon="icon-adddoc" text="添加文档" class-name="btn-adddoc"
+                          max-number-of-files="1" accept=".doc,.docx,.wps,.txt,.pdf" accept-file-types="/(\.|\/)(docx?|txt|wps|pdf)$/i" submit-name="fileupload"
+                          on-after-add-client="atyUploadAejkv1OnAfterAddClient"
+                          on-upload-url="client/fdqc/atyUploadAejkv1/onUploadUrl" hidden
+                          on-done-client="atyUploadAejkvOnDoneClient" on-fail-client="atyUploadAejkvOnFailClient"
+                          on-before-add-client="atyUploadAejkv1OnBeforeAddClient">
+              </aty-upload>
+
+              <aty-button id="atyButtonLmier1" style-type="link" text="添加文档" icon="icon-adddoc" class-name="btn-adddoc-xc" hidden
+                          on-click-client="atyButtonLmier1OnClickClient"></aty-button>
+            </aty-container>
+          </aty-container>
+          <aty-container id="atyContainerJslmk" caption="仿写材料文件列表"></aty-container>
+
+
+        </aty-container>
+        <aty-container id="atyContainerGxuqv" caption="文件列表" class-name="container-filelist"
+                         on-mouse-leave-client="atyContainerGxuqvOnMouseLeaveClient"></aty-container>
+      </aty-container>
+      <aty-container id="atyContainerOdrgi2" caption="正在生成" class-name="container-loading container-loading-1" hidden>
+        <aty-icon id="atyIconLuojy2" class-name="icon-loading"></aty-icon>
+        <aty-icon id="atyIconHovet2" class-name="icon-loadingtext"></aty-icon>
+        <aty-icon id="atyIconXgeki2" class-name="icon-cancel" on-click-client="atyIconXgekiOnClickClient"></aty-icon>
+      </aty-container>
+      <aty-container id="atyContainerUjeny2" caption="已完成" class-name="container-done" hidden>
+        <aty-icon id="atyIconLhbbp2" class-name="icon-done"></aty-icon>
+<!--        <aty-icon id="atyIconJgvmt2" class-name="icon-donetext"></aty-icon>-->
+        <aty-button id="atyButtonGkdoi2" text="对比" class-name="btn-white" hidden icon="icon-compare"
+                    on-click-server="client/fdqc/atyButtonGkdoi2/onClickServer"
+                    on-click-client="atyButtonGkdoi2OnClickClient"></aty-button>
+        <aty-button id="atyButtonSjvqk2" text="续写" class-name="btn-white" icon="icon-xx"
+                    on-click-client="atyButtonSjvqkOnClickClient" hidden></aty-button>
+        <aty-button id="atyButtonAmyfu2" text="换一换" class-name="btn-white btn-white-hyh" icon="icon-hyh"
+                    on-click-client="atyButtonAmyfu2OnClickClient"></aty-button>
+        <aty-button id="atyButtonCmmpd2" class-name="btn-white" text="继续" icon="icon-xx"
+                    on-click-client="atyButtonCmmpd2OnClickClient"></aty-button>
+        <aty-button id="atyButtonTttcj2" text="弃用" class-name="btn-white" icon="icon-qy"
+                    on-click-client="atyButtonTttcjOnClickClient" hidden></aty-button>
+        <aty-button id="atyButtonFqoxr2" text="完成" class-name="btn-blue" icon="icon-donebtn"
+                    on-click-client="atyButtonFqoxr2OnClickClient" show="false"></aty-button>
+        <aty-button id="atyButtonAogeq2" text="排版" class-name="btn-blue" icon="icon-pb"
+                    on-click-client="atyButtonAogeqOnClickClient" hidden></aty-button>
+        <div id="atyContainerPkudo2" caption="排版按钮" class="btn-pb">
+          <i id="atyIconSrtsv2" class="icon-pb"></i>
+          <span id="atyTextYyair2">排版</span>
+          <div id="atyContainerTjjae2" class="icon-dropdown"></div>
+          <div id="atyContainerQnbfd2" class="container-dropdown">
+            <aty-text id="atyTextWeqap2" text="排版(套红头)"></aty-text>
+          </div>
+        </div>
+        <aty-button id="atyButtonWebPb1" text="排版" caption="网页版排版" class-name="btn-blue" icon="icon-pb"
+                    on-click-client="atyButtonWebPb1OnClickClient"></aty-button>
+      </aty-container>
+      <aty-container id="atyContainerOfkbc" caption="摘录列表浮层" class-name="zllb-box" hidden>
+        <aty-container id="atyContainerOtufu" caption="时间选择" class-name="time-selectr-group">
+          <aty-container id="atyContainerFxfix" class-name="time-selectr-label1">时间：</aty-container>
+          <aty-date-picker format="MM月dd日" id="atyTimePickerSvpcy" type="dateRange" class-name="time-selectr-picker" editable="false"></aty-date-picker>
+          <aty-container id="atyContainerDqwcu" class-name="time-selectr-label2"
+                         on-click-client="atyContainerDqwcuOnClickClient"
+                         on-click-server="client/fdqc/atyContainerDqwcu/onClickServer">查询
+          </aty-container>
+          <aty-container id="atyContainerDdcwu" class-name="time-selectr-label2" caption="全选"
+                         on-click-client="atyContainerDdcwuOnClickClient" >全选
+          </aty-container>
+        </aty-container>
+        <aty-container id="atyContainerLgycr" caption="分割线" class-name="zllb-box-split"></aty-container>
+        <aty-container id="atyContainerLcliv" caption="列表" class-name="zlib-box-content">
+          <aty-container id="atyContainerPniqw">
+            <aty-checkbox id="atyCheckboxDebgu" col-num="1" class-name="zllb-box-list" dynamic-data="checkboxOptions">
+            </aty-checkbox>
+          </aty-container>
+        </aty-container>
+      </aty-container>
+
+      <aty-container id="atyContainerOfkbc1" caption="收藏列表浮层" class-name="zllb-box" hidden>
+        <aty-container id="atyContainerOtufu1" caption="时间选择" class-name="search-selectr-group">
+          <aty-container class-name="time-selectr-left">
+            <aty-container id="atyContainerFxfix1" class-name="time-selectr-label1">时间：</aty-container>
+            <aty-date-picker format="MM月dd日" id="atyTimePickerSvpcy1" type="dateRange" class-name="time-selectr-picker" editable="false"></aty-date-picker>
+          </aty-container>
+          <aty-container id="atyContainerDdcwu1" class-name="time-selectr-label2" caption="全选"
+                         on-click-client="atyContainerDdcwu1OnClickClient" >全选
+          </aty-container>
+        </aty-container>
+        <aty-container id="atyContainerInputSearch" caption="时间选择" class-name="search-selectr-group">
+          <aty-container class-name="time-selectr-left">
+            <aty-container id="atyContainerFxfix2" class-name="time-selectr-label1">标题：</aty-container>
+            <aty-input id="atyInputSearch" class="shoucang-input"></aty-input>
+          </aty-container>
+
+          <aty-container id="atyContainerDqwcu1" class-name="time-selectr-label2"
+                         on-click-client="atyContainerDqwcu1OnClickClient">查询
+          </aty-container>
+<!--          <aty-date-picker format="MM月dd日" id="atyTimePickerSvpcy1" type="dateRange" class-name="time-selectr-picker" editable="false"></aty-date-picker>-->
+        </aty-container>
+        <aty-container id="atyContainerLgycr1" caption="分割线" class-name="zllb-box-split"></aty-container>
+        <aty-container id="atyContainerLcliv1" caption="列表" class-name="zlib-box-content">
+          <aty-container id="atyContainerPniqw1">
+            <aty-checkbox id="atyCheckboxDebgu1" col-num="1" class-name="zllb-box-list" dynamic-data="checkboxOptions">
+            </aty-checkbox>
+          </aty-container>
+        </aty-container>
+      </aty-container>
+      <aty-container id="atyContainerSiomi" class-name="deepthink-container" caption="知识库搜索" hidden>
+        <aty-container id="atyContainerZkxrq" caption="parseComponent">
+          <aty-loop-area id="atyLoopAreaGogbg" ds="rs2">
+            <aty-container id="atyContainerTnuka" class-name="deepthink-title-container">
+              <aty-icon id="atyIconIhzxy" class-name="icon-zskss-yywz"></aty-icon>
+              <aty-text id="atyTextQhnxe" text="引用{rs2.total}篇文章作为参考" class-name="text-zskss-yywz"></aty-text>
+              <aty-container id="atyContainerCgocm" class-name="show-think-step"
+                             on-click-client="atyContainerCgocmOnClickClient"></aty-container>
+            </aty-container>
+            <aty-container id="atyContainerHnimx" hidden class-name="zskss-article-list">
+              <aty-loop-area id="atyLoopAreaAiedy" ds="{rs2.data}">
+                <aty-container id="atyContainerVeleu" class-name="zskss-article">
+                  <aty-container class-name="zskss-article-header">
+                    <aty-text id="atyTextHpttr1" text="{rs2.title}" class-name="text-zskss-item-title"></aty-text>
+                    <aty-text id="atyTextHpttr2" text="关联度{rs2.distanceScore}%" class-name="text-zskss-item-score" on-show="atyIconKrivz1OnShow"></aty-text>
+                  </aty-container>
+                  <aty-text id="atyTextYldlu" text="{rs2.content}" class-name="text-zskss-item-content"></aty-text>
+                  <aty-container id="atyContainerHhuwp" class-name="zskss-article-footer">
+                    <aty-container class-name="zskss-article-footer-info">
+                      <aty-text id="atyTextYpsuw" text="{rs2.section}"></aty-text>
+                      <aty-text id="atyTextYpsgk" text="{rs2.secret_level}" on-show="atyIconKrivz1OnShow" class-name="zskss-article-footer-date-download"></aty-text>
+                      <span style="width: 1px;height: 11px;background-color: #E4E4E4;margin: 0px 10px;"/>
+                      <aty-text id="atyTextPqozb" text="{rs2.topic}"></aty-text>
+                      <aty-text id="atyTextYaufv" text="{rs2.create_time}" class-name="zskss-article-footer-date"></aty-text>
+                      <aty-text id="atyTextYaufv1down" text="下载文件" class-name="zskss-article-footer-date-download" on-show="atyIconKrivz1OnShow"
+                                on-click-client="atyTextYaufv1downOnClickClient"
+                                on-click-server="client/fdqc/atyTextYaufv1down/onClickServer"></aty-text>
+                    </aty-container>
+
+                    <aty-container on-click-client="changeCardStatus" class-name="zskss-article-footer-expand">
+                      <aty-text id="atyTextYaufzhan" text="展开" class-name="zskss-article-footer-date-zankai"></aty-text>
+                      <aty-icon id="atyIconKrivz1k" class-name="icon-article-zk"></aty-icon>
+                    </aty-container>
+
+
+                  </aty-container>
+                </aty-container>
+              </aty-loop-area>
+            </aty-container>
+            <aty-hidden id="atyHiddenEpiny_1" caption="隐藏输入框有用勿删" value="{rs2.uuid}"></aty-hidden>
+          </aty-loop-area>
+        </aty-container>
+      </aty-container>
+      <aty-container id="atyContainerDker" class-name="deepthink-container" caption="深度思考" hidden>
+        <aty-container caption="title" class-name="deepthink-title-container">
+          <aty-container class-name="deepthink-title-container-icon"></aty-container>
+          <aty-text id="atyTextDesc" caption="描述" text="深度思考中"></aty-text>
+          <aty-container id="atyTextLoading" class-name="think-loading"></aty-container>
+          <aty-container id="atyTextTs" class-name="close-think-step" on-click-client="showOrCloseThinkStep"></aty-container>
+        </aty-container>
+        <aty-container id="atycontainerTc" caption="内容" class-name="deepthink-contain-container-box">
+          <aty-container caption="内容" class-name="deepthink-content-container">
+            <aty-text id="atytextThinkContent" text=""></aty-text>
+          </aty-container>
+        </aty-container>
+      </aty-container>
+    </aty-container>
+    </aty-container>
+    <aty-container caption="page2" id="atyContainerOdkut" hidden class-name="page2">
+      <aty-region-layout>
+        <aty-region-north id="atyRahgemNorthloading" hidden height="72">
+          <aty-container id="atyContainerOdrgi" caption="正在生成" class-name="container-loading" hidden>
+            <aty-icon id="atyIconLuojy" class-name="icon-loading"></aty-icon>
+            <aty-icon id="atyIconHovet" class-name="icon-loadingtext"></aty-icon>
+            <aty-icon id="atyIconXgeki" class-name="icon-cancel" on-click-client="atyIconXgekiOnClickClient"></aty-icon>
+          </aty-container>
+          <aty-container id="atyContainerUjeny" caption="已完成" class-name="container-done" hidden>
+            <aty-icon id="atyIconLhbbp" class-name="icon-done"></aty-icon>
+    <!--        <aty-icon id="atyIconJgvmt" class-name="icon-donetext"></aty-icon>-->
+            <aty-button id="atyButtonGkdoi" text="对比" class-name="btn-white" hidden icon="icon-compare"
+                        on-click-server="client/fdqc/atyButtonGkdoi2/onClickServer"
+                        on-click-client="atyButtonGkdoi2OnClickClient"></aty-button>
+            <aty-button id="atyButtonSjvqk" text="续写" class-name="btn-white" icon="icon-xx"
+                        on-click-client="atyButtonSjvqkOnClickClient" hidden></aty-button>
+            <aty-button id="atyButtonAmyfu" text="换一换" class-name="btn-white btn-white-hyh" icon="icon-hyh"
+                        on-click-client="atyButtonAmyfuOnClickClient"></aty-button>
+            <aty-button id="atyButtonCmmpd" class-name="btn-white" text="继续" icon="icon-xx"
+                        on-click-client="atyButtonCmmpdOnClickClient"></aty-button>
+                        on-click-client="atyButtonCmmpdOnClickClient"></aty-button>
+            <aty-button id="atyButtonTttcj" text="弃用" class-name="btn-white" icon="icon-qy"
+                        on-click-client="atyButtonTttcjOnClickClient" hidden></aty-button>
+            <aty-button id="atyButtonFqoxr" text="完成" class-name="btn-blue" icon="icon-donebtn"
+                        on-click-client="atyButtonFqoxr2OnClickClient" show="false"></aty-button>
+            <aty-button id="atyButtonAogeq" text="排版" class-name="btn-blue" icon="icon-pb"
+                        on-click-client="atyButtonAogeqOnClickClient" hidden></aty-button>
+            <div id="atyContainerPkudo" caption="排版按钮" class="btn-pb">
+              <i id="atyIconSrtsv" class="icon-pb"></i>
+              <span id="atyTextYyair">排版</span>
+              <div id="atyContainerTjjae" class="icon-dropdown"></div>
+              <div id="atyContainerQnbfd" class="container-dropdown">
+                <aty-text id="atyTextWeqap" text="排版(套红头)"></aty-text>
+              </div>
+            </div>
+            <aty-button id="atyButtonWebPb2" caption="网页版排版" text="排版" class-name="btn-blue" icon="icon-pb"
+                        on-click-client="atyButtonWebPb2OnClickClient"></aty-button>
+          </aty-container>
+        </aty-region-north>
+        <aty-region-center id="atyRegionCenter_14e7b">
+          <aty-container id="atyContainerLrhzs" class-name="marginlr20">
+            <aty-container id="atyContainerQzjmb" class-name="title-contain-style3">
+              <aty-container id="atyTextAfhly" caption="文本摘要" class-name="wzzy-title">文章摘要</aty-container>
+              <aty-button id="atyButtonIqydcd" text="换一换" style-type="zsmb" class-name="refersh-icon"
+                          on-click-client="atyButtonIqydcdOnClickClient"></aty-button>
+              <aty-button id="atyButtonTinrl" text="插入" style-type="zsmb" class-name="insertTextButton"
+                          on-click-client="atyButtonTinrlOnClickClient"></aty-button>
+            </aty-container>
+            <aty-container caption="摘要容器" class-name="abstract-container">
+              <aty-container id="atyContainerAbsThink" hidden>
+                <aty-container caption="title" class-name="deepthink-abs-title-container">
+                  <aty-container class-name="deepthink-title-container-icon"></aty-container>
+                  <aty-text id="atyTextAbsDesc" caption="描述" text="深度思考中"></aty-text>
+                  <aty-container id="atyTextLoading1" class-name="think-loading"></aty-container>
+                  <aty-container id="atyTextAbsTs" class-name="close-think-step" on-click-client="showOrCloseAbsThinkStep"></aty-container>
+                </aty-container>
+                <aty-container id="atycontainerTcAbs" caption="内容" class-name="deepthink-contain-container-box-abs">
+                  <aty-container caption="内容" class-name="deepthink-content-container">
+                    <aty-text id="atytextThinkAbsContent" text=""></aty-text>
+                  </aty-container>
+                </aty-container>
+              </aty-container>
+              <aty-textarea id="atyTextareaByqgw" class-name="zhaiyao-text-area" autosize min-rows="5" max-rows="100"></aty-textarea>
+              <aty-container id="atyContainerFgcli" caption="知识库搜索" hidden class-name="container-zskss">
+                <aty-container id="atyContainerAkvgx" caption="parseComponent">
+                  <aty-loop-area id="atyLoopAreaYusqm" ds="rs2">
+                    <aty-container id="atyContainerSvema" class-name="deepthink-abs-title-container">
+                      <aty-icon id="atyIconDmjfz" class-name="icon-zskss-yywz"></aty-icon>
+                      <aty-text id="atyTextOssoe" class-name="text-zskss-yywz" text="引用{rs2.total}篇文章作为参考"></aty-text>
+                      <aty-container id="atyContainerMfpkc" class-name="show-think-step"
+                                     on-click-client="atyContainerMfpkcOnClickClient"></aty-container>
+                    </aty-container>
+                    <aty-container id="atyContainerAkgda" class-name="zskss-article-list" hidden>
+                      <aty-loop-area id="atyLoopAreaDoysb" ds="{rs2.data}">
+                        <aty-container id="atyContainerHxqnc" class-name="zskss-article">
+                          <aty-text id="atyTextAbgzb" class-name="text-zskss-item-title" text="{rs2.title}"></aty-text>
+                          <aty-text id="atyTextKpktm" class-name="text-zskss-item-content" text="{rs2.content}"></aty-text>
+                          <aty-container id="atyContainerHkrxh" class-name="zskss-article-footer">
+                            <aty-text id="atyTextQqean" text="{rs2.section}"></aty-text>
+                            <span style="width: 1px;height: 11px;background-color: #E4E4E4;margin: 0px 10px;"/>
+                            <aty-text id="atyTextKagao" text="{rs2.topic}">
+                            </aty-text>
+                            <aty-text id="atyTextUqiyw" class-name="zskss-article-footer-date" text="{rs2.create_time}"></aty-text>
+                          </aty-container>
+                        </aty-container>
+                      </aty-loop-area>
+                    </aty-container>
+                    <aty-hidden id="atyHiddenEpiny_2" caption="隐藏输入框有用勿删" value="{rs2.uuid}"></aty-hidden>
+                  </aty-loop-area>
+                </aty-container>
+              </aty-container>
+              <aty-container id="atyContainerAbsThinkabs" hidden>
+                <aty-container caption="title" class-name="deepthink-abs-title-container">
+                  <aty-container class-name="deepthink-title-container-icon"></aty-container>
+                  <aty-text id="atyTextAbsDescabs" caption="描述" text="深度思考中"></aty-text>
+                  <aty-container id="atyTextLoading1abs" class-name="think-loading"></aty-container>
+                  <aty-container id="atyTextAbsTsabs" class-name="close-think-step" on-click-client="showOrCloseAbsThinkStepabs"></aty-container>
+                </aty-container>
+                <aty-container id="atycontainerTcAbsabs" caption="内容" class-name="deepthink-contain-container-box-abs">
+                  <aty-container caption="内容" class-name="deepthink-content-container">
+                    <aty-text id="atytextThinkAbsContentabs" text=""></aty-text>
+                  </aty-container>
+                </aty-container>
+              </aty-container>
+            </aty-container>
+          </aty-container>
+        </aty-region-center>
+      </aty-region-layout>
+    </aty-container>
+    <aty-container id="atyContainerNtmza" caption="page3" hidden class-name="page2">
+      <aty-region-layout>
+        <aty-region-north id="atyRahgemNorthloading1" hidden height="72">
+          <aty-container id="atyContainerOdrgi1" caption="正在生成" class-name="container-loading" hidden>
+            <aty-icon id="atyIconLuojy1" class-name="icon-loading"></aty-icon>
+            <aty-icon id="atyIconHovet1" class-name="icon-loadingtext"></aty-icon>
+            <aty-icon id="atyIconXgeki1" class-name="icon-cancel" on-click-client="atyIconXgekiOnClickClient"></aty-icon>
+          </aty-container>
+          <aty-container id="atyContainerUjeny1" caption="已完成" class-name="container-done" hidden>
+            <aty-icon id="atyIconLhbbp1" class-name="icon-done"></aty-icon>
+    <!--        <aty-icon id="atyIconJgvmt1" class-name="icon-donetext"></aty-icon>-->
+            <aty-button id="atyButtonGkdoi1" text="对比" class-name="btn-white" hidden icon="icon-compare"
+                        on-click-server="client/fdqc/atyButtonGkdoi2/onClickServer"
+                        on-click-client="atyButtonGkdoi2OnClickClient"></aty-button>
+            <aty-button id="atyButtonSjvqk1" text="续写" class-name="btn-white" icon="icon-xx"
+                        on-click-client="atyButtonSjvqkOnClickClient" hidden></aty-button>
+            <aty-button id="atyButtonAmyfu1" text="换一换" class-name="btn-white btn-white-hyh" icon="icon-hyh"
+                        on-click-client="atyButtonAmyfu1OnClickClient"></aty-button>
+            <aty-button id="atyButtonCmmpd1" class-name="btn-white" text="继续" icon="icon-xx"
+                        on-click-client="atyButtonCmmpd1OnClickClient"></aty-button>
+            <aty-button id="atyButtonTttcj1" text="弃用" class-name="btn-white" icon="icon-qy"
+                        on-click-client="atyButtonTttcjOnClickClient" hidden></aty-button>
+            <aty-button id="atyButtonFqoxr1" text="完成" class-name="btn-blue" icon="icon-donebtn"
+                        on-click-client="atyButtonFqoxr2OnClickClient" show="false"></aty-button>
+            <aty-button id="atyButtonAogeq1" text="排版" class-name="btn-blue" icon="icon-pb"
+                        on-click-client="atyButtonAogeqOnClickClient" hidden></aty-button>
+            <div id="atyContainerPkudo1" caption="排版按钮" class="btn-pb">
+              <i id="atyIconSrtsv1" class="icon-pb"></i>
+              <span id="atyTextYyair1">排版</span>
+              <div id="atyContainerTjjae1" class="icon-dropdown"></div>
+              <div id="atyContainerQnbfd1" class="container-dropdown">
+                <aty-text id="atyTextWeqap1" text="排版(套红头)"></aty-text>
+              </div>
+            </div>
+            <aty-button id="atyButtonWebPb3" caption="网页版排版" text="排版" class-name="btn-blue" icon="icon-pb"
+                        on-click-client="atyButtonWebPb3OnClickClient"></aty-button>
+          </aty-container>
+        </aty-region-north>
+        <aty-region-center id="atyRegionCenter_15e7b">
+          <aty-container id="atyContainerNgxqo" class-name="marginlr20">
+            <aty-container id="atyContainerUmdsh" class-name="title-contain-style3">
+              <aty-text id="atyTextIcmrt" text="大纲"></aty-text>
+              <aty-button id="atyButtonIqyqc" text="换一换" class-name="refersh-icon" style-type="zsmb"
+                          on-click-client="atyButtonIqyqcOnClickClient"></aty-button>
+              <aty-button id="atyButtonNppxn" text="插入" class-name="insertTextButton" style-type="zsmb"
+                          on-click-client="atyButtonNppxnOnClickClient"></aty-button>
+            </aty-container>
+            <aty-container caption="大纲容器" class-name="abstract-container">
+              <aty-container id="atyContainerOutlineThink" hidden>
+                <aty-container caption="title" class-name="deepthink-abs-title-container">
+                  <aty-container class-name="deepthink-title-container-icon"></aty-container>
+                  <aty-text id="atyTextOutDesc" caption="描述" text="深度思考中"></aty-text>
+                  <aty-container id="atyTextLoading2" class-name="think-loading"></aty-container>
+                  <aty-container id="atyTextOutTs" class-name="close-think-step" on-click-client="showOrCloseOutThinkStep"></aty-container>
+                </aty-container>
+                <aty-container id="atycontainerTcOut" caption="内容" class-name="deepthink-contain-container-box-abs">
+                  <aty-container caption="内容" class-name="deepthink-content-container">
+                    <aty-text id="atytextThinkOutContent" text=""></aty-text>
+                  </aty-container>
+                </aty-container>
+              </aty-container>
+              <aty-textarea id="atyTextareaJhkli" autosize class-name="zhaiyao-text-area" max-rows="200" min-rows="10"></aty-textarea>
+              <aty-container id="atyContainerRcwsq" caption="知识库搜索" class-name="container-zskss" hidden>
+                <aty-container id="atyContainerTxpww" caption="parseComponent">
+                  <aty-loop-area id="atyLoopAreaAngeq" ds="rs2">
+                    <aty-container id="atyContainerXagnv" class-name="deepthink-abs-title-container">
+                      <aty-icon id="atyIconLkahc" class-name="icon-zskss-yywz"></aty-icon>
+                      <aty-text id="atyTextHnerc" class-name="text-zskss-yywz" text="引用{rs2.total}篇文章作为参考"></aty-text>
+                      <aty-container id="atyContainerDgtdq" class-name="show-think-step"
+                                     on-click-client="atyContainerDgtdqOnClickClient"></aty-container>
+                    </aty-container>
+                    <aty-container id="atyContainerMhozh" class-name="zskss-article-list" hidden>
+                      <aty-loop-area id="atyLoopAreaLokii" ds="{rs2.data}">
+                        <aty-container id="atyContainerKzokh" class-name="zskss-article">
+                          <aty-text id="atyTextFzbxt" class-name="text-zskss-item-title" text="{rs2.title}"></aty-text>
+                          <aty-text id="atyTextEgcqp" class-name="text-zskss-item-content" text="{rs2.content}"></aty-text>
+                          <aty-container id="atyContainerZgrqw" class-name="zskss-article-footer">
+                            <aty-text id="atyTextRoebv" text="{rs2.section}"></aty-text>
+                            <span style="width: 1px;height: 11px;background-color: #E4E4E4;margin: 0px 10px;"/>
+                            <aty-text id="atyTextLmwvx" text="{rs2.topic}"></aty-text>
+                            <aty-text id="atyTextItwzo" class-name="zskss-article-footer-date" text="{rs2.create_time}"></aty-text>
+                          </aty-container>
+                        </aty-container>
+                      </aty-loop-area>
+                    </aty-container>
+                    <aty-hidden id="atyHiddenEpiny_3" caption="隐藏输入框有用勿删" value="{rs2.uuid}"></aty-hidden>
+                  </aty-loop-area>
+                </aty-container>
+              </aty-container>
+              <aty-container id="atyContainerOutlineThinkout" hidden>
+                <aty-container caption="title" class-name="deepthink-abs-title-container">
+                  <aty-container class-name="deepthink-title-container-icon"></aty-container>
+                  <aty-text id="atyTextOutDescout" caption="描述" text="深度思考中"></aty-text>
+                  <aty-container id="atyTextLoading2out" class-name="think-loading"></aty-container>
+                  <aty-container id="atyTextOutTsout" class-name="close-think-step" on-click-client="showOrCloseOutThinkStepout"></aty-container>
+                </aty-container>
+                <aty-container id="atycontainerTcOutout" caption="内容" class-name="deepthink-contain-container-box-abs">
+                  <aty-container caption="内容" class-name="deepthink-content-container">
+                    <aty-text id="atytextThinkOutContentout" text=""></aty-text>
+                  </aty-container>
+                </aty-container>
+              </aty-container>
+            </aty-container>
+          </aty-container>
+        </aty-region-center>
+      </aty-region-layout>
+    </aty-container>
+  </aty-region-center>
+  <aty-region-south id="atyRegionSouthIbqkt" border="false" height="50">
+    <aty-container id="atyContainerTtiyp" caption="page1" >
+      <aty-container id="atyContainerZnxhj" caption="按钮组" class-name="button-group-style">
+        <aty-button id="atyButtonYvodk" text="生成摘要" class-name="button-group-single" style-type="zsmb"
+                    on-click-client="atyButtonYvodkOnClickClient" hidden></aty-button>
+        <aty-button id="atyButtonAcqsr" text="生成大纲" class-name="button-group-single" style-type="zsmb"
+                    on-click-client="atyButtonAcqsrOnClickClient"></aty-button>
+        <aty-button id="atyButtonZwltx" text="生成全文" class-name="button-group-single"
+                    on-click-client="atyButtonZwltx1OnClickClient"></aty-button>
+<!--        <aty-button id="eva1" type="icon" text="评" enable-toggle="true" on-click-client="evaArticle"-->
+<!--                    on-click-server="client/fdqc/eva1/onClickServer"   style="margin-right: 20px"></aty-button>-->
+      </aty-container>
+    </aty-container>
+    <aty-container id="atyContainerAzfzn" caption="page2" hidden>
+      <aty-container id="atyContainerXcbwm" caption="按钮组" class-name="button-group-style">
+<!--        <aty-button id="atyButtonYvofh" text="返回首页" class-name="button-group-single" style-type="zsmb"-->
+<!--                    on-click-client="atyButtonYvofhOnClickClient"></aty-button>-->
+        <aty-button id="atyButtonZsxrh" text="返回首页" class-name="button-group-single" style-type="zsmb"
+                    on-click-client="atyButtonZsxrhOnClickClient"></aty-button>
+        <aty-button id="atyButtonUvqir" text="生成大纲" class-name="button-group-single" style-type="zsmb"
+                    on-click-client="atyButtonUvqirOnClickClient"></aty-button>
+        <aty-button id="atyButtonZbnma" text="生成全文" class-name="button-group-single"
+                    on-click-client="atyButtonZbnmaOnClickClient"></aty-button>
+<!--        <aty-button id="eva2" type="icon" text="评" enable-toggle="true"   style="margin-right: 20px"></aty-button>-->
+      </aty-container>
+    </aty-container>
+    <aty-container id="atyContainerTcnim" caption="page3" hidden>
+      <aty-container id="atyContainerMhgbf" caption="按钮组" class-name="button-group-style">
+        <aty-button id="atyButtonYvofh" text="返回首页" class-name="button-group-single" style-type="zsmb"
+                    on-click-client="atyButtonYvofhOnClickClient"></aty-button>
+<!--        <aty-button id="atyButtonExysd" text="上一步" class-name="button-group-single" style-type="zsmb"-->
+<!--                    on-click-client="atyButtonExysdOnClickClient"></aty-button>-->
+        <aty-button id="atyButtonBzajl" text="生成全文" class-name="button-group-single"
+                    on-click-client="atyButtonBzajlOnClickClient"></aty-button>
+<!--        <aty-button id="eva3" type="icon" text="评" enable-toggle="true"  style="margin-right: 20px"></aty-button>-->
+      </aty-container>
+    </aty-container>
+  </aty-region-south>
+</aty-region-layout>
+<aty-button id="btnIsLoaded" hidden caption="判断页面是否加载完成的按钮"></aty-button>
+<aty-modal id="atyModalLhhby" caption="收藏列表" footer-hide="true" title="收藏列表">
+  <aty-container id="atyContainerVnacv">
+    <aty-container class-name="wdsc-info">
+      <aty-text text="我的收藏"></aty-text>
+    </aty-container>
+    <aty-container id="atyContainerOkicc" class-name="search-form">
+        <aty-input id="atysearchInput" label="关键字" submit-name="name" label-width="55" icon="hypf-icon-A-061"
+                   on-icon-click-client="handleSearch"></aty-input>
+<!--        <aty-button id="btn1tj" text="搜索" on-click-client="handleSearch" class-name="handle-search-btn"></aty-button>-->
+    </aty-container>
+    <aty-container id="atyContainerIrcss" >
+      <aty-loop-area id="atyLoopAreaVmhvf" ds="rs1">
+        <aty-container id="atyContainerJvsnm" class-name="scfw-select-line">
+          <aty-container class-name="scfw-select-list-line">
+            <aty-tooltip content="{rs1.label}" placement="top-start">
+              <aty-container class-name="wzlabel">{rs1.labelsimp}</aty-container>
+            </aty-tooltip>
+            <aty-container id="atyContainertitle" class-name="scfw-select-line-title"
+                           on-click-client="atyContainertitleOnClickClient">{rs1.title}</aty-container>
+          </aty-container>
+          <aty-container>
+            <aty-button id="atyButtonZjkrn" text="仿写" style-type="link" on-click-client="atyButtonZjkrnOnClickClient"></aty-button>
+          </aty-container>
+        </aty-container>
+      </aty-loop-area>
+    </aty-container>
+    <aty-container class-name="sc-pagepar-group">
+      <aty-pagingbar id="pageingbar12" ds="rs1" limit="5" on-change-client="handlePagingBarChange" simple="true" class-name="sc-pageinbar"></aty-pagingbar>
+    </aty-container>
+  </aty-container>
+</aty-modal>
+<aty-modal caption="角色设置模态框" id="atyModelRole" title="角色设置" on-ok-client="atyModelRoleOnOkClient"
+           on-ok-server="client/fdqc/atyModelRole/onOkServer">
+  <aty-container>
+    <aty-container>
+      <aty-container >
+        <aty-text class-name="role-title" text="设置AI角色信息可有效让模型专注于特定单位的主题或情境，提高内容的相关性和质量。"></aty-text>
+      </aty-container>
+      <aty-container class-name="mg-top">
+        <aty-text text="推荐" class-name="role-title-example"></aty-text>
+        <aty-text class-name="text-tj"
+                text="你是**单位的**人员，擅长******，请根据用户提供的信息，写出******的******。特别要注意：******"></aty-text>
+      </aty-container>
+    </aty-container>
+    <aty-container class-name="mg-top">
+      <aty-textarea id="atyTextAreaRole" class-name="text-mg" on-show="RoleInfoShow" autosize
+                    min-rows="5" max-rows="10" placeholder="你是一位专业的公文写作助手，擅长撰写各类正式公文。请依据用户提供的标题、事由、参考文档、摘要、大纲等信息，生成格式规范、语言严谨、符合公文写作要求的正式公文。需确保公文内容完整、逻辑清晰、表达准确，符合相应公文类型的风格特点。"></aty-textarea>
+    </aty-container>
+  </aty-container>
+</aty-modal>
+<aty-modal id="atyModalBkimt" caption="引用收藏/摘录" width="436px" footer-hide class-name="modal-yysczl" title="个人文稿">
+  <aty-hidden id="atyHiddenBczlo"></aty-hidden>
+  <aty-input id="atyInputGowub" placeholder="请输入搜索关键词" icon="icon-yysczl-search"
+             on-icon-click-client="atyInputGowubOnIconClickClient"></aty-input>
+  <aty-container id="atyContainerCsymi" class-name="container-yysczl-line"></aty-container>
+  <aty-container id="atyContainerBknht" class-name="result-yysczl">
+    <aty-container id="atyContainerFsflm" class-name="result-yysczl-wrap">
+      <aty-container id="atyContainerIxajz" class-name="result-yysczl-list">
+        <aty-loop-area id="atyLoopAreaGtwtg" ds="rs3">
+          <aty-container id="atyContainerChgbd" class-name="yysczl-checkbox"
+                         on-click-client="atyContainerChgbdOnClickClient">
+            <aty-hidden id="atyHiddenBaouf" value="{rs3.value}"></aty-hidden>
+            <aty-icon id="atyIconEdjaa" class-name="icon-yysczl"></aty-icon>
+            <aty-text id="atyTextLyqjd" text="{rs3.text}" title="{rs3.text}"></aty-text>
+          </aty-container>
+        </aty-loop-area>
+      </aty-container>
+      <aty-pagingbar id="atyPagingbarSoqnf" ds="rs3" show-limit-opts="false" show-elevator="false"
+                     simple align="center" show-total="false"
+                     on-change-client="atyPagingbarSoqnfOnChangeClient"></aty-pagingbar>
+    </aty-container>
+  </aty-container>
+  <aty-container id="atyContainerLtrwt" style="text-align: center;">
+    <aty-button id="atyButtonDugjp" text="确定" class-name="btn-yysczl-ok"
+                on-click-client="atyButtonDugjpOnClickClient"></aty-button>
+  </aty-container>
+</aty-modal>
+
+
+<aty-modal id="atyModalWzts" caption="文字提示" footer-hide width="433px" class-name="ywzx-modal"
+           on-ok-client="atyModalWztsOnOkClient" on-cancel-client="atyModalWztsOnCancelClient">
+  <aty-modal-header hidden></aty-modal-header>
+  <aty-container class-name="ywzx-text-container">
+    <aty-text text="当前内容区域有内容，默认会追加内容到光标处。是否"><aty-text style="color: red" text="清空内容"></aty-text>后开始写作</aty-text>
+  </aty-container>
+  <aty-container class-name="ywzx-button-container">
+    <aty-button class-name="ywzx-button" on-click-client="atyModalWztsOnOkClient" text="是"></aty-button>
+    <aty-button class-name="ywzx-button" on-click-client="atyModalWztsOnCancelClient" text="否" style-type="cmb"></aty-button>
+  </aty-container>
+</aty-modal>
+<script type="text/javascript" src="js/common/qwebchannel.js"></script>
+<script type="text/javascript" src="js/common/htmlMoveWord.js"></script>
+<script type="text/javascript" src="js/common/formdata-xc.js"></script>
+<script type="text/javascript" src="js/common/tool.js"></script>
+<script type="text/javascript" src="js/jquery.cookie.min.js"></script>
+<!-- xman:2026-01-29 心跳检测模块 -->
+<script type="text/javascript" src="js/client/heartbeat.js"></script>
+<script type="text/javascript" src="js/client/fdqc.js" aty:artery-type="js"></script>
+<script type="text/javascript" aty:artery-type="script-init"></script>
+</body>
+</html>

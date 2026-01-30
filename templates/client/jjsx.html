@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns:aty="http://www.thunisoft.com">
+<head>
+  <base href="{ctx}/">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="renderer" content="webkit">
+  <meta type="aty-meta" name="java" content="com.thunisoft.intelligenteditor.controller.client.JjsxController.java">
+  <link rel="stylesheet" type="text/css" aty:artery-type="import-css"/>
+  <link rel="stylesheet" type="text/css" href="css/client/gxcom.css" aty:artery-type="css"/>
+  <link rel="stylesheet" type="text/css" href="css/client/jjsx.css" aty:artery-type="css"/>
+  <script type="text/javascript" aty:artery-type="script-global"></script>
+  <script type="text/javascript" aty:artery-type="script-config"></script>
+  <script type="text/javascript" aty:artery-type="import-js"></script>
+  <title>公文智能排版与校对系统</title>
+</head>
+<body>
+<aty-container id="atyContainerGxrss">
+  <aty-container id="exportPull" class-name="rs-item rs-expand" hidden>
+    <aty-container id="exportPull2" class-name="exportPull-a" on-click-client="atyTextExpandOnClick">
+      <aty-image class-name="export-logo" width="8px" height="8px"
+                 image="icons/gxrs/expand.png"></aty-image>
+      <aty-text id="atyTextExpand" text="展开" class-name="rs-export-packup" ></aty-text>
+    </aty-container>
+  </aty-container>
+  <aty-container id="atyContainerExport">
+    <aty-container id="atyContainerCdyq" class-name="container-title-bottom-all container-title-top">
+      <aty-text id="atyTextCdyq" text="缩写类型（单选）"></aty-text>
+      <aty-toggle-layout id="atyToggleLayoutCdyq" caption="缩写类型" layout="flow" class-name="container-title-bottom"
+                         on-select-client="atyToggleLayoutCdyqOnSelectClient">
+        <aty-container id="atyContainerbchi" class-name="container-content-type text-content-type-selected" caption="精简">
+          <aty-text id="atyTextbchi" class-name="text-content-type" text="精简"></aty-text>
+        </aty-container>
+        <aty-container id="atyContainerjingjian" class-name="container-content-type" caption="总结">
+          <aty-text id="atyTextjingjian" class-name="text-content-type" text="总结"></aty-text>
+        </aty-container>
+      </aty-toggle-layout>
+    </aty-container>
+    <aty-container id="atyContainerCyqq" class-name="container-title-bottom-all">
+      <aty-text id="atyTextRequire" text="缩写要求"></aty-text>
+      <aty-container class-name="container-title-bottom">
+        <aty-textarea id="textareaRequire" on-keyup-client="keyupClickClient"  length-tip="{length}/{maxLength}" placeholder="请输入缩写要求，如：您希望缩写的方向与重点" max-length="2500"></aty-textarea>
+      </aty-container>
+    </aty-container>
+    <aty-container id="atyContainerSwitch" class-name="container-title-bottom-all">
+      <aty-switch id="switchChangeTest" label="是否设置字数" label-width="94" on-change-client="handleChange"></aty-switch>
+    </aty-container>
+    <aty-container id="atyContainerZsyq" class-name="container-title-bottom-all" hidden>
+      <aty-text id="atyTextLength" text="字数要求"></aty-text>
+      <aty-container class-name="container-title-bottom">
+        <aty-numeric id="numeric" value="400" step="10"></aty-numeric>
+      </aty-container>
+    </aty-container>
+
+    <aty-button id="toggleBtn" text="开始生成" on-click-client="atyButtonStart"></aty-button>
+    <aty-button id="clearBtn" text="清空" style-type="zsmb" class-name="clear-btn" enable-toggle="true" on-click-client="onClearClickClient" hidden></aty-button>
+  </aty-container>
+  <aty-container id="packupPull" class-name="rs-item rs-packup" hidden>
+    <aty-container id="packupPull2" class-name="exportPull-a" on-click-client="atyTextPackupOnClick">
+      <aty-image class-name="export-logo" width="8px" height="8px"
+                 image="icons/gxrs/packup.png"></aty-image>
+      <aty-text id="atyTextPackup" text="收起" class-name="rs-export-packup"></aty-text>
+    </aty-container>
+  </aty-container>
+
+  <aty-container id="generateLlmContent" class-name="generateLlm" >
+    <aty-container id="atyContainerCxsc" hidden>
+      <aty-container id="atyContainerCxsc33" class-name="container-cxjc" on-click-client="atyContainerRsCxsc_OnClient">
+        <aty-image class-name="header-left-logo" width="16px" height="16px"
+                   image="icons/gxrs/cxjc.png"></aty-image>
+        <aty-text text="重新生成" class-name="cxjc"></aty-text>
+      </aty-container>
+      <aty-button id="clearBtn2" text="清空" style-type="zsmb" class-name="clear-btn" enable-toggle="true" on-click-client="onClearClickClient"></aty-button>
+    </aty-container>
+    <aty-container id="atyContainerOdrgi" caption="正在生成" class-name="container-loading" hidden>
+      <aty-icon id="atyIconLuojy" class-name="icon-loading"></aty-icon>
+      <aty-icon id="atyIconHovet" class-name="icon-loadingtext"></aty-icon>
+      <aty-icon id="atyIconXgeki" class-name="icon-cancel"
+                on-click-client="atyIconXgekiOnClickClient"></aty-icon>
+    </aty-container>
+    <aty-container id="atyContainerZswjd" class-name="container-center-res">
+      <aty-container id="atyContainerJharea" caption="校核结果展示" hidden>
+      </aty-container>
+      <aty-container id="atyContainerEzumh" caption="结果区域" class-name="container-res" hidden>
+        <aty-container id="atyContainerThink" hidden>
+          <aty-container caption="title" class-name="deepthink-title-container">
+            <aty-container class-name="deepthink-title-container-icon"></aty-container>
+            <aty-text id="atyTextDesc" caption="描述" text="深度思考中"></aty-text>
+            <aty-container id="atyTextLoading" class-name="think-loading"></aty-container>
+            <aty-container id="atyTextTs" class-name="close-think-step" on-click-client="showOrCloseThinkStep"></aty-container>
+          </aty-container>
+          <aty-container id="atycontainerTc" caption="内容" class-name="deepthink-contain-container-box">
+            <aty-container caption="内容" class-name="deepthink-content-container">
+              <aty-text id="atytextThinkContent" text=""></aty-text>
+            </aty-container>
+          </aty-container>
+        </aty-container>
+        <aty-container id="atyContainerXotmm" caption="结果" class-name="div-res"></aty-container>
+        <aty-container id="atyContainerFvxvp" caption="按钮区域" class-name="container-res-btn">
+          <aty-icon id="atyIconSffpy" class-name="icon-hyh" title="换一换" on-click-client="atyIconSffpyOnClickClient"></aty-icon>
+          <aty-icon id="atyIconCvjbv" class-name="icon-fz" title="复制" on-click-client="atyIconCvjbvOnClickClient"></aty-icon>
+          <aty-button id="atyButtonCompare" text="比对" icon="icon-bd" class-name="btn-bd"
+                      on-click-client="atyButtonCompareOnClickClient"></aty-button>
+          <aty-button id="atyButtonRxvst" text="插入" class-name="btn-cr" icon="icon-cr"
+                      on-click-client="atyButtonRxvstOnClickClient"></aty-button>
+        </aty-container>
+      </aty-container>
+    </aty-container>
+  </aty-container>
+</aty-container>
+
+  <script type="text/javascript" src="js/common/tool.js"></script>
+  <script type="text/javascript" src="js/common/diff_match_patch.js"></script>
+  <script type="text/javascript" src="js/common/gxcom.js"></script>
+  <!-- xman:2026-01-29 心跳检测模块 -->
+  <script type="text/javascript" src="js/client/heartbeat.js"></script>
+  <script type="text/javascript" src="js/client/jjsx.js" aty:artery-type="js"></script>
+  <script type="text/javascript" aty:artery-type="script-init"></script>
+</body>
+</html>

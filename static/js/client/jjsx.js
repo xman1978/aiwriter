@@ -4,6 +4,7 @@
  * @author huayu
  * @date 2025-06-17
  *********************************************/
+
 let selectedCdyqId = "atyContainerbchi";
 
 let wpsinner = false;
@@ -113,6 +114,88 @@ function atyButtonStart() {
     prepareAndCall(false);
 }
 
+// xman:2026-01-30 获取Word文档正文内容（排除页眉、页脚、脚注等）
+function getWpsContent() {
+    const wdMainTextStory = 1;          // 主正文区域
+
+    try {
+        var doc = Artery.getParentArtery().getParentWindow().wps.WpsApplication().ActiveDocument;
+        if (!doc) {
+            Artery.alert.warning("请先打开一个 Word 文档！");
+            return "";
+        }
+
+        var mainRange = doc.StoryRanges.Item(wdMainTextStory).Duplicate;
+
+        // 收集所有目录（TOC）的起止位置，用于排除
+        var tocRanges = [];
+        for (var i = 1; i <= doc.TablesOfContents.Count; i++) {
+            var toc = doc.TablesOfContents.Item(i);
+            tocRanges.push({
+                start: toc.Range.Start,
+                end: toc.Range.End
+            });
+        }
+
+        // 遍历主正文中的所有段落
+        var paragraphs = mainRange.Paragraphs;
+        var resultLines = [];
+
+        for (var p = 1; p <= paragraphs.Count; p++) {
+            var para = paragraphs.Item(p);
+            var paraRange = para.Range;
+            var start = paraRange.Start;
+            var end = paraRange.End;
+
+            // 跳过位于目录中的段落
+            var skip = false;
+            for (var j = 0; j < tocRanges.length; j++) {
+                var tr = tocRanges[j];
+                if (end > tr.start && start < tr.end) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (skip) continue;
+
+            // 获取用户输入的文本（去除段落标记 \r）
+            var text = paraRange.Text;
+            if (text) {
+                if (text.endsWith("\r\n")) {
+                    text = text.slice(0, -2);
+                } else if (text.endsWith("\r") || text.endsWith("\n")) {
+                    text = text.slice(0, -1);
+                }
+            }
+
+            // 获取该段落显示的编号（如 "1 ", "2.1 ", "• " 等）
+            var listStr = "";
+            try {
+                listStr = paraRange.ListFormat.ListString || "";
+            } catch (e) {
+                listStr = "";
+            }
+
+            // 合并编号与文本
+            var fullLine = listStr.trim() + (listStr.trim() ? " " : "") + text;
+
+            // 跳过纯空白行和目录
+            if (fullLine.trim() !== "" && fullLine.trim() !== "目录") {
+                resultLines.push(fullLine);
+            }
+        }
+
+        // 合并为完整文本
+        var finalText = resultLines.join("\n");
+
+        return finalText;
+
+    } catch (e) {
+        Artery.alert.warning("获取正文时出错：\n" + e.message);
+        return "";
+    }
+}
+
 
 function prepareAndCall(isChange) {
     if (connecting) {
@@ -120,7 +203,7 @@ function prepareAndCall(isChange) {
         returnNewState(isChange);
         return;
     }
-
+    
     expansion = Artery.get('textareaRequire').getValue();
     if(expansion.length >= 2500) {
         Artery.alert.warning("缩写要求过长");
@@ -148,12 +231,14 @@ function prepareAndCall(isChange) {
                 //    sentence = "";
                 // }
                 // xman:2026-01-14 如果选中内容为空，则获取文档内容
-                var doc = Artery.getParentArtery().getParentWindow().wps.WpsApplication().ActiveDocument;
-                var rawText = doc.Content.Text;
-                sentence = rawText.replace(/\r\n|\r/g, "\n").trim(); // 移除尾部换行
+                // var doc = Artery.getParentArtery().getParentWindow().wps.WpsApplication().ActiveDocument;
+                // var rawText = doc.Content.Text;
+                // sentence = rawText.replace(/\r\n|\r/g, "\n").trim(); // 移除尾部换行
+                sentence = getWpsContent();
                 isSelected = false;
             } else {
                 sentence = Artery.getParentArtery().getParentWindow().wps.WpsApplication().Selection.Text;
+                isSelected = true;
             }
             // 如果选中内容为空，则提示用户选中内容
             if (sentence.length === 0 || sentence.trim().length === 0) {
@@ -179,6 +264,7 @@ function prepareAndCall(isChange) {
                     isSelected = false;
                 } else {
                     sentence = text;
+                    isSelected = true;
                 }
             }
             if (sentence.length === 0 || sentence.trim().length === 0) {
@@ -203,6 +289,7 @@ function prepareAndCall(isChange) {
                 } else {
                     sentence = text;
                 }
+                isSelected = true;
             });
             // xman:2026-01-14 如果选中内容为空，则获取文档内容
             if (sentence.length === 0 || sentence.trim().length === 0) {
@@ -211,6 +298,7 @@ function prepareAndCall(isChange) {
                         const res = JSON.parse(resultObj);
                         if (res.ok) {
                             sentence = res.content;
+                            isSelected = false;
                         } else {
                             Artery.message.warning("获取文档内容失败");
                             returnNewState(isChange)
@@ -222,7 +310,6 @@ function prepareAndCall(isChange) {
                         return;
                     }
                 });
-                isSelected = false;
             }
             setTimeout(function () {
                 if (sentence.length === 0 || sentence.trim().length === 0) {
@@ -543,15 +630,68 @@ function request(llm_mode, callback) {
     request.open(_method, _url, true);
     request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
     request.setRequestHeader('Accept', 'application/json, text/plain, */*');
-    request.timeout = 300000;
+    
+    // xman:2026-01-29 禁用XMLHttpRequest的内置超时，使用共用的自定义超时管理
+    request.timeout = 0; // 禁用内置超时，使用自定义超时管理
+    
+    // xman:2026-01-29 使用共用的超时管理函数
+    var timeoutManager = createCustomTimeoutManager(request, _url, _id, 3600000);
+    var lastDataReceiveTime = Date.now();
+    
     request.onreadystatechange = function () {
+        /**
+         * request.readyState
+         * 0: 请求未初始化
+         * 1: 服务器连接已建立
+         * 2: 请求已接收
+         * 3: 请求处理中
+         * 4: 请求已完成，且响应已就绪
+         */
+        // xman:2026-01-29 当接收到数据时（readyState为3），重置超时计时器
+        if (request.readyState === 3) {
+            // 接收到流式数据，重置自定义超时计时器
+            lastDataReceiveTime = Date.now();
+            // 重置自定义超时计时器：清除旧的计时器，创建新的1小时计时器
+            timeoutManager.resetCustomTimeout();
+            var elapsedTime = Date.now() - request._startTime;
+            // 每30秒记录一次数据接收日志，避免日志过多
+            if (elapsedTime % 30000 < 1000) {
+                console.log('[数据接收] 接收到流式数据，已运行: ' + Math.floor(elapsedTime/1000) + 's, 已重置自定义超时计时器（3600s）');
+            }
+        }
+        // xman:2026-01-29 请求完成时清除自定义超时计时器并注销请求对象
+        if (request.readyState === 4) {
+            timeoutManager.cleanup();
+            // 注销请求对象，避免内存泄漏
+            if (typeof unregisterRequest === 'function' && request._getRequestFn) {
+                unregisterRequest(request._getRequestFn);
+            }
+        }
         callback(request);
     }
     request.onerror = function handleError() {
-        console.log("request error");
+        // xman:2026-01-29 记录请求错误日志
+        var elapsedTime = request._startTime ? Date.now() - request._startTime : 0;
+        console.error('[请求错误] 请求发生错误，已运行: ' + Math.floor(elapsedTime/1000) + 's, readyState: ' + request.readyState);
+        console.error('[请求错误] 请求URL: ' + _url + ', 请求ID: ' + _id);
+        // 清除自定义超时计时器并注销请求对象
+        timeoutManager.cleanup();
+        if (typeof unregisterRequest === 'function' && request._getRequestFn) {
+            unregisterRequest(request._getRequestFn);
+        }
+        connecting = false;
     }
     request.ontimeout = function handleTimeout() {
-        console.error('timeout of ' + request.timeout + ' ms exceeded');
+        // xman:2026-01-29 记录请求超时日志（XMLHttpRequest内置超时，但我们已经禁用了）
+        var elapsedTime = request._startTime ? Date.now() - request._startTime : 0;
+        console.error('[请求超时-XMLHttpRequest] 超时时间: ' + request.timeout + 'ms, 已运行: ' + Math.floor(elapsedTime/1000) + 's, readyState: ' + request.readyState);
+        console.error('[请求超时-XMLHttpRequest] 请求URL: ' + _url + ', 请求ID: ' + _id);
+        // 清除自定义超时计时器并注销请求对象
+        timeoutManager.cleanup();
+        if (typeof unregisterRequest === 'function' && request._getRequestFn) {
+            unregisterRequest(request._getRequestFn);
+        }
+        connecting = false;
     }
 
     let parentArtery = Artery.getParentArtery();
@@ -578,11 +718,16 @@ function request(llm_mode, callback) {
         "simple": 'simple' in parentArtery.getParentArtery().params && parentArtery.getParentArtery().params.simple === 'true'
     };
 
-
-
     request.send(JSON.stringify(params));
     _request = request;
     _scrollToBottom = true;
+    // xman:2026-01-29 注册请求对象到共用心跳模块
+    var getRequestFn = function() { return _request; };
+    if (typeof registerRequest === 'function') {
+        registerRequest(getRequestFn);
+        // 将获取函数存储到request对象上，供注销时使用
+        request._getRequestFn = getRequestFn;
+    }
 }
 
 function updateScroll(e) {
@@ -602,6 +747,10 @@ function updateScroll(e) {
  * @param rc 系统提供的AJAX调用对象
  */
 function atyIconXgekiOnClickClient(rc) {
+    // xman:2026-01-29 注销请求对象后再中止请求
+    if (_request && typeof unregisterRequest === 'function' && _request._getRequestFn) {
+        unregisterRequest(_request._getRequestFn);
+    }
     _request.abort();
     _request = null;
     connecting = false;
